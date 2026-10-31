@@ -1,0 +1,478 @@
+{
+  "meetings": [
+    {
+      "id": "mtg-9753",
+      "title": "Quarterly Security Task Force & Authentication Survey",
+      "date": "2026-10-31",
+      "duration": "30 min",
+      "participants": [
+        "Sarah Chen",
+        "Marcus Vance"
+      ],
+      "status": "Processed",
+      "decisionsCount": 1,
+      "tasksCount": 1,
+      "conflictsDetected": 0,
+      "snippet": "The team conducted a general quarterly access review and established planning goals for the upcoming quarter. Key decisions included tasking the security engineering team with evaluating alternative a"
+    },
+    {
+      "id": "mtg-0679",
+      "title": "API Gateway Read Optimization & Caching Sync",
+      "date": "2026-10-31",
+      "duration": "30 min",
+      "participants": [
+        "Sarah Chen",
+        "Marcus Vance"
+      ],
+      "status": "Processed",
+      "decisionsCount": 2,
+      "tasksCount": 1,
+      "conflictsDetected": 0,
+      "snippet": "The team evaluated current read query loads to support the 1,200 req/min rate limit. It was agreed to deploy a Redis cache cluster and implement automated proactive alerts for clients approaching thei"
+    },
+    {
+      "id": "mtg-2967",
+      "title": "Architecture & Cloud Spanner Migration Sync",
+      "date": "2026-10-31",
+      "duration": "30 min",
+      "participants": [
+        "Sarah Chen",
+        "Marcus Vance",
+        "Elena Rostova"
+      ],
+      "status": "Processed",
+      "decisionsCount": 1,
+      "tasksCount": 2,
+      "conflictsDetected": 0,
+      "snippet": "The team addressed database write latency spikes during peak hours and evaluated mitigation strategies. After reviewing Marcus's data, they formally agreed to migrate the core ledger to Google Cloud S"
+    },
+    {
+      "id": "mtg-101",
+      "title": "Q4 API Gateway Migration & Rate Limiting Sync",
+      "date": "2026-10-30",
+      "duration": "42 min",
+      "participants": [
+        "Sarah Chen",
+        "Marcus Vance",
+        "Elena Rostova",
+        "Liam Patel"
+      ],
+      "status": "Processed",
+      "decisionsCount": 3,
+      "tasksCount": 4,
+      "conflictsDetected": 1,
+      "snippet": "Agreed to adopt Envoy v1.32 for tier-1 traffic; flagged potential rate-limit clash with Enterprise SLA commitments made in Sep 2026."
+    },
+    {
+      "id": "mtg-102",
+      "title": "Client Enterprise SLA & Support Tier Overhaul",
+      "date": "2026-10-28",
+      "duration": "35 min",
+      "participants": [
+        "Marcus Vance",
+        "Claire Dupont",
+        "Jessica Miller"
+      ],
+      "status": "Processed",
+      "decisionsCount": 2,
+      "tasksCount": 3,
+      "conflictsDetected": 1,
+      "snippet": "Guaranteed 99.95% uptime for tier-1 endpoints with 5-minute failover guarantee, pending architecture team confirmation."
+    },
+    {
+      "id": "mtg-103",
+      "title": "Design System 2.0 Dark Mode & Accessibility Audit",
+      "date": "2026-10-25",
+      "duration": "50 min",
+      "participants": [
+        "Elena Rostova",
+        "David Kim",
+        "Liam Patel"
+      ],
+      "status": "Processed",
+      "decisionsCount": 2,
+      "tasksCount": 2,
+      "conflictsDetected": 0,
+      "snippet": "Finalized WCAG AAA contrast standard for all core dashboard text and established warm neutral base token set."
+    },
+    {
+      "id": "mtg-104",
+      "title": "Data Retention & Cold Storage Compliance Review",
+      "date": "2026-10-22",
+      "duration": "28 min",
+      "participants": [
+        "Sarah Chen",
+        "Thomas Wright",
+        "Legal Counsel"
+      ],
+      "status": "Processed",
+      "decisionsCount": 1,
+      "tasksCount": 2,
+      "conflictsDetected": 0,
+      "snippet": "Standardized customer telemetry archive cycle to 90 days hot, 365 days Glacier cold storage."
+    }
+  ],
+  "decisions": [
+    {
+      "id": "dec-0758-1",
+      "date": "2026-10-31",
+      "meetingReference": "Quarterly Security Task Force & Authentication Survey",
+      "meetingId": "mtg-9753",
+      "category": "Governance",
+      "status": "Active",
+      "decisionText": "Task the security engineering team with evaluating future alternative authentication methods and gathering contractor feedback during Q1.",
+      "rationale": "Necessary for next quarter planning and improving future access security.",
+      "hasConflictWarning": false
+    },
+    {
+      "id": "dec-6617-1",
+      "date": "2026-10-31",
+      "meetingReference": "API Gateway Read Optimization & Caching Sync",
+      "meetingId": "mtg-0679",
+      "category": "Architecture",
+      "status": "Active",
+      "decisionText": "Deploy a Redis cache cluster in front of the API gateway to support existing read query loads and rate limits.",
+      "rationale": "Necessary to efficiently handle the 1,200 req/min rate limit and optimize read performance.",
+      "hasConflictWarning": false
+    },
+    {
+      "id": "dec-6617-2",
+      "date": "2026-10-31",
+      "meetingReference": "API Gateway Read Optimization & Caching Sync",
+      "meetingId": "mtg-0679",
+      "category": "Client SLA",
+      "status": "Active",
+      "decisionText": "Configure automated email alerts when clients reach 85% of their 1,200 requests/minute limit.",
+      "rationale": "Provides proactive notification before rate limits are fully exhausted.",
+      "hasConflictWarning": false
+    },
+    {
+      "id": "dec-2967-1",
+      "date": "2026-10-31",
+      "meetingReference": "Architecture & Cloud Spanner Migration Sync",
+      "meetingId": "mtg-2967",
+      "category": "Architecture",
+      "status": "Active",
+      "decisionText": "Migrate the core ledger to Google Cloud Spanner by December 15, 2026.",
+      "rationale": "To resolve peak-hour write latency spikes and ensure multi-region consistency, while accounting for downtime constraints.",
+      "hasConflictWarning": false
+    },
+    {
+      "id": "dec-01",
+      "date": "Oct 30, 2026",
+      "meetingReference": "Q4 API Gateway Migration & Rate Limiting Sync",
+      "meetingId": "mtg-101",
+      "category": "Architecture",
+      "status": "Conflict Flagged",
+      "decisionText": "Cap standard API clients at 1,200 requests/minute to protect core database connection pools during failovers.",
+      "rationale": "Analysis of September outage showed unbounded retry storms overwhelmed PostgreSQL write replicas.",
+      "hasConflictWarning": true,
+      "conflictNotes": "Potential Conflict with Decision DEC-02 (Oct 28): Enterprise tier contracts promised burst capacity up to 3,000 req/min without throttling."
+    },
+    {
+      "id": "dec-02",
+      "date": "Oct 28, 2026",
+      "meetingReference": "Client Enterprise SLA & Support Tier Overhaul",
+      "meetingId": "mtg-102",
+      "category": "Client SLA",
+      "status": "Under Review",
+      "decisionText": "Guarantee 99.95% availability with dedicated burst headroom for Enterprise contract renewals in Q4.",
+      "rationale": "Sales commitment required to secure the Horizon Capital and FinTech Global multi-year renewals.",
+      "hasConflictWarning": true,
+      "conflictNotes": "Cross-meeting conflict: API team decided a 1,200 req/min hard ceiling on Oct 30."
+    },
+    {
+      "id": "dec-03",
+      "date": "Oct 25, 2026",
+      "meetingReference": "Design System 2.0 Dark Mode & Accessibility Audit",
+      "meetingId": "mtg-103",
+      "category": "Product",
+      "status": "Active",
+      "decisionText": "Enforce WCAG AAA 7:1 contrast ratios across all primary data tables and user notification banners.",
+      "rationale": "Ensures compliance ahead of upcoming European Accessibility Act (EAA) audit."
+    },
+    {
+      "id": "dec-04",
+      "date": "Oct 22, 2026",
+      "meetingReference": "Data Retention & Cold Storage Compliance Review",
+      "meetingId": "mtg-104",
+      "category": "Governance",
+      "status": "Active",
+      "decisionText": "Automatically transition telemetry logs to Glacier vault storage after 90 days; purge non-anonymized user logs after 365 days.",
+      "rationale": "Reduces cloud infrastructure spend by 34% while satisfying ISO-27001 audit criteria."
+    },
+    {
+      "id": "dec-05",
+      "date": "Oct 14, 2026",
+      "meetingReference": "Sprint 42 Retrospective & Architecture Review",
+      "meetingId": "mtg-098",
+      "category": "Architecture",
+      "status": "Superseded",
+      "decisionText": "Utilize NGINX open-source sidecars for microservice ingress routing.",
+      "rationale": "Replaced by Decision DEC-01 adopting Envoy v1.32 for native gRPC and circuit breaking support."
+    },
+    {
+      "id": "dec-06",
+      "date": "Oct 08, 2026",
+      "meetingReference": "Security & Authentication Steering Committee",
+      "meetingId": "mtg-092",
+      "category": "Governance",
+      "status": "Active",
+      "decisionText": "Require hardware FIDO2 / WebAuthn keys for all production database access; deprecate SMS 2FA.",
+      "rationale": "Defends against phishing-resistant session hijacking vectors identified in recent red-team exercise."
+    }
+  ],
+  "tasks": [
+    {
+      "id": "tsk-0758-1",
+      "title": "Design the contractor feedback survey form",
+      "owner": {
+        "name": "Sarah Chen",
+        "avatar": "SC",
+        "role": "Security Engineering / Participant"
+      },
+      "dueDate": "Dec 01, 2026",
+      "priority": "High",
+      "status": "Awaiting Approval",
+      "associatedMeeting": "Quarterly Security Task Force & Authentication Survey",
+      "associatedDecisionId": "dec-0758-1",
+      "associatedDecisionText": "Task the security engineering team with evaluating future alternative authentication methods and gathering contractor feedback during Q1.",
+      "requiresUserConfirmation": true
+    },
+    {
+      "id": "tsk-6617-1",
+      "title": "Configure the Redis cluster in staging",
+      "owner": {
+        "name": "Marcus Vance",
+        "avatar": "MV",
+        "role": "Infrastructure Lead"
+      },
+      "dueDate": "Nov 15, 2026",
+      "priority": "High",
+      "status": "Awaiting Approval",
+      "associatedMeeting": "API Gateway Read Optimization & Caching Sync",
+      "associatedDecisionId": "dec-6617-1",
+      "associatedDecisionText": "Deploy a Redis cache cluster in front of the API gateway to support existing read query loads and rate limits.",
+      "requiresUserConfirmation": true
+    },
+    {
+      "id": "tsk-1613-1",
+      "title": "Configure the Redis cluster in staging",
+      "owner": {
+        "name": "Marcus",
+        "avatar": "M",
+        "role": "Infrastructure Lead"
+      },
+      "dueDate": "Nov 15, 2026",
+      "priority": "High",
+      "status": "Awaiting Approval",
+      "associatedMeeting": "API Gateway Read Optimization & Caching Sync",
+      "associatedDecisionId": "dec-1613-1",
+      "associatedDecisionText": "Deploy a Redis cache cluster in front of the API gateway.",
+      "requiresUserConfirmation": true
+    },
+    {
+      "id": "tsk-2967-1",
+      "title": "Complete the pilot benchmark in staging",
+      "owner": {
+        "name": "Marcus Vance",
+        "avatar": "MV",
+        "role": "Infrastructure Lead"
+      },
+      "dueDate": "Nov 10, 2026",
+      "priority": "High",
+      "status": "Awaiting Approval",
+      "associatedMeeting": "Architecture & Cloud Spanner Migration Sync",
+      "associatedDecisionId": "dec-2967-1",
+      "associatedDecisionText": "Migrate the core ledger to Google Cloud Spanner by December 15, 2026.",
+      "requiresUserConfirmation": true
+    },
+    {
+      "id": "tsk-2967-2",
+      "title": "Draft rollback procedures",
+      "owner": {
+        "name": "Sarah Chen",
+        "avatar": "SC",
+        "role": "Architect / Engineering Lead"
+      },
+      "dueDate": "Nov 14, 2026",
+      "priority": "High",
+      "status": "Awaiting Approval",
+      "associatedMeeting": "Architecture & Cloud Spanner Migration Sync",
+      "associatedDecisionId": "dec-2967-1",
+      "associatedDecisionText": "Migrate the core ledger to Google Cloud Spanner by December 15, 2026.",
+      "requiresUserConfirmation": true
+    },
+    {
+      "id": "tsk-01",
+      "title": "Benchmark Envoy gateway latency under simulated 15k req/sec peak load",
+      "owner": {
+        "name": "Marcus Vance",
+        "avatar": "MV",
+        "role": "Infrastructure Lead",
+        "email": "marcus.vance@meetingmind.internal"
+      },
+      "dueDate": "2026-11-03",
+      "priority": "High",
+      "status": "Awaiting Approval",
+      "associatedMeeting": "Q4 API Gateway Migration & Rate Limiting Sync",
+      "associatedDecisionId": "dec-01",
+      "associatedDecisionText": "Cap standard API clients at 1,200 requests/minute to protect core database connection pools.",
+      "requiresUserConfirmation": true
+    },
+    {
+      "id": "tsk-02",
+      "title": "Draft reconciled Enterprise SLA addendum reflecting 5-min failover limits",
+      "owner": {
+        "name": "Claire Dupont",
+        "avatar": "CD",
+        "role": "Client Success VP",
+        "email": "claire.dupont@meetingmind.internal"
+      },
+      "dueDate": "2026-11-04",
+      "priority": "High",
+      "status": "Awaiting Approval",
+      "associatedMeeting": "Client Enterprise SLA & Support Tier Overhaul",
+      "associatedDecisionId": "dec-02",
+      "associatedDecisionText": "Guarantee 99.95% availability with dedicated burst headroom for Enterprise contract renewals.",
+      "requiresUserConfirmation": true
+    },
+    {
+      "id": "tsk-03",
+      "title": "Audit Redis cluster eviction policies before migration cutoff",
+      "owner": {
+        "name": "Liam Patel",
+        "avatar": "LP",
+        "role": "SRE Lead",
+        "email": "liam.patel@meetingmind.internal"
+      },
+      "dueDate": "2026-11-05",
+      "priority": "High",
+      "status": "Awaiting Approval",
+      "associatedMeeting": "Q4 API Gateway Migration & Rate Limiting Sync",
+      "associatedDecisionId": "dec-01",
+      "associatedDecisionText": "Protect database connection pools from retry storms during failover windows.",
+      "requiresUserConfirmation": true
+    },
+    {
+      "id": "tsk-04",
+      "title": "Update Tailwind CSS design system tokens for high-contrast accessibility",
+      "owner": {
+        "name": "Elena Rostova",
+        "avatar": "ER",
+        "role": "Design Systems Lead",
+        "email": "elena.rostova@meetingmind.internal"
+      },
+      "dueDate": "2026-11-06",
+      "priority": "Medium",
+      "status": "In Progress",
+      "associatedMeeting": "Design System 2.0 Dark Mode & Accessibility Audit",
+      "associatedDecisionId": "dec-03",
+      "associatedDecisionText": "Enforce WCAG AAA 7:1 contrast ratios across all primary data tables and user notification banners.",
+      "requiresUserConfirmation": false
+    },
+    {
+      "id": "tsk-05",
+      "title": "Configure AWS S3 Glacier lifecycle transitions for raw telemetry buckets",
+      "owner": {
+        "name": "Sarah Chen",
+        "avatar": "SC",
+        "role": "DevOps Engineer",
+        "email": "sarah.chen@meetingmind.internal"
+      },
+      "dueDate": "2026-11-09",
+      "priority": "Medium",
+      "status": "Confirmed",
+      "associatedMeeting": "Data Retention & Cold Storage Compliance Review",
+      "associatedDecisionId": "dec-04",
+      "associatedDecisionText": "Automatically transition telemetry logs to Glacier vault storage after 90 days.",
+      "requiresUserConfirmation": false
+    },
+    {
+      "id": "tsk-06",
+      "title": "Verify automated failover circuit breaker telemetry in staging sandbox",
+      "owner": {
+        "name": "Liam Patel",
+        "avatar": "LP",
+        "role": "SRE Lead",
+        "email": "liam.patel@meetingmind.internal"
+      },
+      "dueDate": "2026-11-12",
+      "priority": "Low",
+      "status": "Confirmed",
+      "associatedMeeting": "Q4 API Gateway Migration & Rate Limiting Sync",
+      "associatedDecisionId": "dec-01",
+      "associatedDecisionText": "Cap standard API clients at 1,200 req/min during failovers.",
+      "requiresUserConfirmation": false
+    },
+    {
+      "id": "tsk-07",
+      "title": "Revoke legacy SSH keys and distribute WebAuthn YubiKeys to staging team",
+      "owner": {
+        "name": "Sarah Chen",
+        "avatar": "SC",
+        "role": "DevOps Engineer",
+        "email": "sarah.chen@meetingmind.internal"
+      },
+      "dueDate": "2026-10-29",
+      "priority": "High",
+      "status": "Completed",
+      "associatedMeeting": "Security & Authentication Steering Committee",
+      "associatedDecisionId": "dec-06",
+      "associatedDecisionText": "Require hardware FIDO2 / WebAuthn keys for all production database access; deprecate SMS 2FA.",
+      "requiresUserConfirmation": false
+    },
+    {
+      "id": "tsk-08",
+      "title": "Sunset NGINX proxy sidecar deployment manifests across staging clusters",
+      "owner": {
+        "name": "Marcus Vance",
+        "avatar": "MV",
+        "role": "Infrastructure Lead",
+        "email": "marcus.vance@meetingmind.internal"
+      },
+      "dueDate": "2026-10-27",
+      "priority": "Medium",
+      "status": "Completed",
+      "associatedMeeting": "Sprint 42 Retrospective & Architecture Review",
+      "associatedDecisionId": "dec-05",
+      "associatedDecisionText": "Superseded: Replaced NGINX sidecars with Envoy v1.32 ingress proxy.",
+      "requiresUserConfirmation": false
+    },
+    {
+      "id": "tsk-09",
+      "title": "Deploy experimental Redis Lua rate-limit scripts to production canary",
+      "owner": {
+        "name": "Marcus Vance",
+        "avatar": "MV",
+        "role": "Infrastructure Lead",
+        "email": "marcus.vance@meetingmind.internal"
+      },
+      "dueDate": "2026-10-24",
+      "priority": "High",
+      "status": "Rejected",
+      "associatedMeeting": "Q4 API Gateway Migration & Rate Limiting Sync",
+      "associatedDecisionId": "dec-01",
+      "associatedDecisionText": "Rejected by human operator: Script clashed with multi-region replication safety limits.",
+      "requiresUserConfirmation": false
+    }
+  ],
+  "conflicts": [
+    {
+      "id": "conf-01",
+      "sourceDecisionId": "dec-01",
+      "targetDecisionId": "dec-02",
+      "sourceMeetingTitle": "Q4 API Gateway Migration & Rate Limiting Sync",
+      "targetMeetingTitle": "Client Enterprise SLA & Support Tier Overhaul",
+      "description": "Rate ceiling conflict: Dec-01 capped standard clients at 1,200 req/min, contradicting Dec-02 Enterprise contract burst guarantee of 3,000 req/min.",
+      "severity": "Critical",
+      "detectedAt": "2026-10-30T14:32:00Z",
+      "resolved": false
+    }
+  ],
+  "meta": {
+    "version": 1,
+    "initializedAt": "2026-10-31T12:03:36.324Z",
+    "lastUpdated": "2026-10-31T13:14:14.591Z"
+  }
+}
