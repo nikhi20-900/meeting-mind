@@ -1,79 +1,189 @@
+<div align="center">
+
 # MeetingMind 🧠
 
-> **Agentic Meeting Intelligence for High-Velocity Teams**  
-> Turn voice conversations and transcripts into auditable decisions, catch cross-meeting policy contradictions before they become bugs, and keep humans firmly in control of task creation.
+### **Agentic Meeting Intelligence & Organizational Policy Guardian**
 
-Built for the **Agentic AI Hackathon** with **Next.js (App Router)**, **TypeScript**, **Tailwind CSS**, and **Google Gemini Flash**.
+Turn spoken conversations into auditable decisions, catch cross-meeting policy conflicts before they become bugs, and keep humans firmly in control of task creation.
+
+[![Next.js](https://img.shields.io/badge/Next.js-16.4-black?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
+[![Google Gemini Flash](https://img.shields.io/badge/Google_Gemini-3.5_Flash-E37400?style=for-the-badge&logo=google-gemini&logoColor=white)](https://ai.google.dev/)
+[![Wispr Flow Ready](https://img.shields.io/badge/Wispr_Flow-Voice_Ready-FF5722?style=for-the-badge)](https://wisprflow.ai/)
+[![License MIT](https://img.shields.io/badge/License-MIT-22C55E?style=for-the-badge)](LICENSE)
+
+[**Live Demo Walkthrough**](#-the-3-minute-live-demo-walkthrough) • [**System Architecture**](#-system-architecture) • [**Key Features**](#-key-features) • [**Getting Started**](#-getting-started) • [**Conflict Detection Engine**](#-cross-meeting-conflict-detection-deep-dive)
+
+</div>
 
 ---
 
 ## 🌟 The Problem MeetingMind Solves
 
-Engineering and product teams spend dozens of hours every week making decisions in meetings. But within 48 hours:
-1. **Organizational Amnesia**: Verbal commitments are lost or buried across fragmented docs.
-2. **Cross-Meeting Policy Collisions**: One team decides to enforce hardware FIDO2 authentication; two weeks later, another team casually approves SMS 2FA for contractor onboarding—causing compliance violations.
-3. **Autonomous Agent Chaos**: Traditional AI note-takers create noise by blindly dumping dozens of unverified tasks into issue trackers.
+Engineering and product organizations spend hundreds of hours in meetings every week making commitments. But within 48 hours:
 
-**MeetingMind bridges the gap**: It extracts structured consensus, cross-references historical memory for policy contradictions, and enforces human operator confirmation before any task is created.
+1. **Organizational Amnesia**: Verbal agreements evaporate or end up buried in disparate Google Docs, Slack huddles, and Zoom recordings.
+2. **Cross-Meeting Policy Collisions**: One team establishes a strict security standard (e.g., *Mandate hardware FIDO2 keys; deprecate SMS 2FA*). Three weeks later, a different team casually approves SMS 2FA to unblock offshore contractors—silently violating compliance.
+3. **Autonomous Agent Chaos**: Generic AI note-takers flood engineering backlogs with low-confidence, unverified action items that nobody owns.
+
+### The MeetingMind Solution:
+MeetingMind acts as an **active, policy-aware meeting intelligence layer**. It extracts structured consensus from speech, cross-references historical organizational memory to catch contradictory commitments, and enforces a **Human-in-the-Loop Approval Gatekeeper** before any task enters the sprint.
+
+---
+
+## 🏗️ System Architecture
+
+MeetingMind connects voice dictation, frontier LLM extraction, semantic conflict audits, and lightweight persistence into a unified agentic loop:
+
+```mermaid
+flowchart TD
+    subgraph Input ["1. Voice & Transcript Ingestion"]
+        A["🎙️ Wispr Flow Voice Dictation"] --> C["Meeting Recap / Transcript"]
+        B["📋 Zoom / Meet / Slack Transcript"] --> C
+    end
+
+    subgraph LLM ["2. Server-Side Extraction Pipeline"]
+        C --> D["/api/extract Route (Server-Side Only)"]
+        D --> E["Google Gemini Flash 3.5 / 3.8"]
+        E --> F["Structured Output Validation<br/>(Summary, Decisions, Tasks, Speakers)"]
+    end
+
+    subgraph Audit ["3. Cross-Meeting Policy Guardian"]
+        F --> G["Semantic Contradiction Engine"]
+        H[("💾 Persistent Decision Memory<br/>(data/meeting_mind_db.json)")] <--> G
+        G -->|Genuine Contradiction| I["🚨 Red Conflict Alert Card<br/>(Both Decisions + Analysis + Resolution)"]
+        G -->|Compatible / Insufficient Info| J["✅ Active Decision Verified"]
+    end
+
+    subgraph Governance ["4. Human-in-the-Loop Governance"]
+        F --> K["Tasks Held in 'Awaiting Approval'<br/>(requiresUserConfirmation: true)"]
+        K --> L["👤 Human Operator Review"]
+        L -->|Confirm| M["Confirmed & Synced to Backlog"]
+        L -->|Reject| N["Rejected with Audit Log"]
+    end
+
+    subgraph UI ["5. Executive Views"]
+        M --> O["📊 Dashboard Overview"]
+        J --> P["🧠 Decision Memory Repository"]
+        I --> P
+        O --> Q["📑 Executive Weekly Digest"]
+    end
+```
 
 ---
 
 ## 🚀 Key Features
 
-* **🎙️ Wispr Flow Voice Integration**: Dictate meeting recaps live with natural voice fluency or paste raw transcripts from Zoom, Google Meet, or Slack.
-* **⚡ Server-Side Gemini Flash Intelligence**: Utilizes Google's active `gemini-3.5-flash-lite` (with automatic fallback to `gemini-3.8-flash`) via the official `@google/genai` SDK. Fast, structured JSON extraction with zero client-side key exposure.
-* **🛡️ Cross-Meeting Conflict Detection**: The core differentiator. Before saving decisions, MeetingMind checks against historical organizational memory. If a proposed policy contradicts an established standard (e.g. rate limits, authentication requirements, code freeze windows), it flags the clash, presents both decisions side-by-side, explains the contradiction, and provides an actionable resolution.
-* **👤 Human-in-the-Loop Task Governance**: Proposed tasks are strictly initialized as **`Awaiting Approval`** (`requiresUserConfirmation: true`). Team leads inspect and explicitly **Confirm** or **Reject** action items.
-* **💾 Persistent Storage**: Lightweight atomic disk database (`data/meeting_mind_db.json`) ensuring all meetings, decisions, conflicts, and tasks survive browser refreshes and application restarts.
-* **📊 Executive Weekly Digest**: Aggregates decisions, assignments, and upcoming deadlines across the entire organization or per team member.
+| Capability | What It Does | Why It Matters |
+| :--- | :--- | :--- |
+| **🎙️ Wispr Flow Voice Integration** | Dictate meeting recaps with natural fluency directly into the recap text area. | Eliminates typing friction; capture meetings live as they conclude. |
+| **⚡ Server-Side Gemini Intelligence** | Runs `gemini-3.5-flash-lite` with automatic fallback to `gemini-3.8-flash` via `@google/genai`. | Sub-second extraction with zero browser API key exposure. |
+| **🛡️ Cross-Meeting Conflict Engine** | Automatically checks new decisions against historical memory for policy collisions. | Prevents contradictory engineering, SLA, and security commitments. |
+| **👤 Human-in-the-Loop Governance** | All proposed tasks start in **`Awaiting Approval`** and require explicit confirmation. | Protects team capacity by stopping AI agents from polluting task trackers. |
+| **💾 Zero-Config Atomic Persistence** | Mutex-queued file database (`data/meeting_mind_db.json`) persisting all state. | Survives page refreshes and server restarts with zero complex DB setup. |
+| **📊 Executive Weekly Digest** | Aggregates decisions, assignments, and deadlines across teams and individual members. | Instant executive synthesis for 1:1s, sprint planning, and leadership reviews. |
 
 ---
 
-## 🛠️ Tech Stack
+## 🛡️ Cross-Meeting Conflict Detection Deep-Dive
 
-* **Framework**: Next.js 16 (App Router)
-* **Language**: TypeScript 5
-* **Styling**: Tailwind CSS v4
-* **Icons**: Lucide React
-* **AI / LLM**: Google Gemini Developer API (`@google/genai` v2.32.0)
-* **Database**: Atomic JSON file store with mutex queuing
-* **Audio / Dictation**: Wispr Flow integration
+MeetingMind's conflict engine strictly audits candidate decisions to **eliminate false positives**:
+
+```mermaid
+flowchart LR
+    A["Proposed Decision"] --> B{"Shares Domain Relevance?"}
+    B -- No --> C["✅ Compatible (Different Domain)"]
+    B -- Yes --> D{"Exploratory or Insufficient Info?"}
+    D -- Yes (Study / Review) --> E["✅ Non-Conflicting (Zero False Positive)"]
+    D -- No --> F{"Mutually Exclusive Mandate?"}
+    F -- No (Caching / Alerting / Coexisting) --> G["✅ Compatible (Complements Policy)"]
+    F -- Yes (Direct Contradiction) --> H["🚨 CONFLICT FLAGGED<br/>• Identifies Both Decisions<br/>• Explains Contradiction<br/>• Proposes Actionable Resolution"]
+```
+
+### Audited Real-World Test Scenarios:
+1. **Genuine Contradiction (Flagged)**:
+   * *Historical Decision (`#DEC-06`)*: "Require hardware FIDO2 / WebAuthn keys for all production database access; deprecate SMS 2FA."
+   * *New Decision*: "Permit and restore SMS 2FA as a standard login option for production database access to unblock contractors."
+   * *Outcome*: **FLAGGED**. UI highlights both decisions side-by-side, explains that SMS 2FA violates the FIDO2 mandate, and suggests provisioning software-based WebAuthn tokens.
+2. **Two Compatible Decisions (Not Flagged — Zero False Positives)**:
+   * *Historical Decision (`#DEC-01`)*: "Cap standard API clients at 1,200 requests/minute to protect core database connection pools."
+   * *New Decision*: "Deploy a Redis cache cluster in front of the API gateway and configure email alerts when clients reach 85% of their 1,200 requests/minute limit."
+   * *Outcome*: **CLEAN (0 Conflicts)**. The engine recognizes that caching and alerting *complements and enforces* the rate limit rather than violating it.
+3. **Insufficient Information (Not Flagged — Zero False Positives)**:
+   * *Historical Decision (`#DEC-06`)*: "Require hardware FIDO2 / WebAuthn keys for all production database access; deprecate SMS 2FA."
+   * *New Decision*: "Task the security team with evaluating future alternative authentication methods and gathering contractor feedback during Q1."
+   * *Outcome*: **CLEAN (0 Conflicts)**. Exploratory reviews and surveys without concrete policy enactments are never prematurely flagged.
+
+---
+
+## 🎬 The 3-Minute Live Demo Walkthrough
+
+Follow this sequence to showcase the complete application workflow:
+
+```
+[0:00 - 0:30] Dashboard Overview (The Problem)
+     ↓
+[0:30 - 1:10] New Meeting (Wispr Flow Voice Dictation & Gemini Extraction)
+     ↓
+[1:10 - 1:55] Conflict Engine in Action (Red Alert: #DEC-06 vs SMS 2FA)
+     ↓
+[1:55 - 2:25] Human Task Approval (Confirming Action Item in Task Tracker)
+     ↓
+[2:25 - 2:45] Browser Refresh (Verifying True Disk Persistence)
+     ↓
+[2:45 - 3:00] Decision Memory & Weekly Digest (Organizational Consensus)
+```
+
+### Ready-to-Paste Conflict Demo Snippet:
+```text
+Title: Security Exception Review: Contractor Authentication
+Attendees: Sarah Chen, Marcus Vance
+
+Recap Text:
+Discussion: Offshore contractor onboarding has been delayed due to physical YubiKey hardware shipping times. To unblock production database access for the external engineers, the team formally decided to permit and restore SMS 2FA as a standard login option for production database access.
+
+Action Item: Sarah Chen to re-enable SMS provider credentials by Nov 05.
+```
 
 ---
 
 ## 🚦 Getting Started
 
-### 1. Clone the repository
+### Prerequisites
+* **Node.js**: v20 or newer
+* **Google Gemini API Key**: Free key from [Google AI Studio](https://aistudio.google.com/app/apikey) *(Supports both standard `AIza...` and new `AQ.Ab...` authorization keys)*.
+
+### Installation
+
 ```bash
+# 1. Clone the repository
 git clone https://github.com/nikhi20-900/meeting-mind.git
 cd meeting-mind
-```
 
-### 2. Install dependencies
-```bash
+# 2. Install dependencies
 npm install
-```
 
-### 3. Configure Environment Variables
-Copy `.env.example` to `.env.local`:
-```bash
+# 3. Set up environment variables
 cp .env.example .env.local
 ```
 
-Open `.env.local` and add your Google Gemini API key:
+Edit `.env.local`:
 ```env
 GEMINI_API_KEY="your_gemini_api_key_here"
 ```
-*(Get a free Gemini API key from [Google AI Studio](https://aistudio.google.com/app/apikey). MeetingMind supports both standard `AIza...` and new `AQ.Ab...` authorization keys).*
 
-### 4. Run the Development Server
+### Running Locally
+
 ```bash
+# Start the development server
 npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-### 5. Production Build
+### Production Build
+
 ```bash
 npm run build
 npm start
@@ -81,30 +191,31 @@ npm start
 
 ---
 
-## 📁 Project Architecture
+## 📁 Repository Structure
 
 ```
 meeting-mind/
 ├── data/
-│   └── meeting_mind_db.json         # Persistent JSON database (atomic writes)
+│   └── meeting_mind_db.json         # Lightweight atomic JSON database
 ├── src/
 │   ├── app/
 │   │   ├── api/
-│   │   │   ├── dashboard/route.ts   # Real-time dashboard stats & aggregations
-│   │   │   ├── decisions/route.ts   # Decision memory query API
-│   │   │   ├── extract/route.ts     # Server-side Gemini extraction & conflict pipeline
-│   │   │   └── tasks/route.ts       # Task retrieval & human status update (PATCH)
-│   │   ├── decision-memory/         # Long-term searchable organizational memory
-│   │   ├── new-meeting/             # Transcript input, Wispr Flow banner, extraction
+│   │   │   ├── dashboard/route.ts   # Live dashboard telemetry endpoint
+│   │   │   ├── decisions/route.ts   # Organizational decision query API
+│   │   │   ├── extract/route.ts     # Secure server-side Gemini Flash extraction
+│   │   │   └── tasks/route.ts       # Human task status mutation endpoint (PATCH)
+│   │   ├── decision-memory/         # Searchable, filterable organizational memory
+│   │   ├── new-meeting/             # Meeting input, Wispr Flow guide & extraction UI
 │   │   ├── tasks/                   # Task Tracker with Confirm / Reject workflow
-│   │   ├── weekly-digest/           # Executive team synthesis & member filter
+│   │   ├── weekly-digest/           # Executive team synthesis & member filters
 │   │   ├── globals.css              # Warm off-white & charcoal design tokens
-│   │   ├── layout.tsx               # Root layout & system typography
+│   │   ├── layout.tsx               # Root app layout & metadata
 │   │   └── page.tsx                 # Dashboard overview
 │   ├── components/
-│   │   ├── decision-memory/         # Filterable decision memory table & cards
+│   │   ├── dashboard/               # Stat cards, recent meetings, decision lists
+│   │   ├── decision-memory/         # Filterable decision table & category chips
 │   │   ├── layout/                  # Collapsible sidebar & header shell
-│   │   ├── new-meeting/             # Form input, conflict cards, extraction results
+│   │   ├── new-meeting/             # Transcript input, conflict cards, results
 │   │   └── ui/                      # Badges, empty states, stat cards
 │   ├── data/
 │   │   └── mockData.ts              # Canonical initial organizational memory
@@ -114,7 +225,7 @@ meeting-mind/
 │   │   ├── validateExtraction.ts    # Schema validation for LLM outputs
 │   │   └── db/                      # Repository layer & atomic file persistence
 │   └── types/                       # TypeScript interfaces
-├── .env.example                     # Safe environment template
+├── .env.example                     # Safe environment configuration template
 ├── package.json
 └── tsconfig.json
 ```
@@ -123,12 +234,18 @@ meeting-mind/
 
 ## 🔒 Security & Privacy
 
-* **Zero Key Leakage**: API keys are accessed exclusively in server-side API routes and are **never bundled or exposed to client browsers**.
-* **Error Sanitization**: All error logs and upstream messages pass through an active sanitizer that strips query parameters, `AQ.` tokens, `AIza` keys, and Bearer headers.
-* **Isolated Environment**: `.env.local` is strictly ignored by `.gitignore`.
+* **Strict Key Isolation**: API keys are accessed **only on the server**. They are never injected into client JavaScript bundles or exposed to browsers.
+* **Active Log Sanitization**: All error messages and logs pass through an automated regex sanitizer that scrubs query parameters (`key=...`), `AQ.` Auth keys, `AIza` keys, and `Bearer` headers.
+* **Safe Repository**: `.env.local` is strictly ignored by `.gitignore` to prevent credential leakage.
 
 ---
 
 ## 📄 License
 
-MIT License. Built with ❤️ for the Agentic AI Hackathon.
+Distributed under the **MIT License**. See `LICENSE` for details.
+
+---
+
+<div align="center">
+Built with ❤️ for the <b>Agentic AI Hackathon</b>.
+</div>
