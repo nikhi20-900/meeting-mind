@@ -5,6 +5,7 @@ import Link from "next/link";
 import { MeetingExtractionResult } from "@/types/extraction";
 import { Decision, TaskItem } from "@/types";
 import { DetectedConflict } from "@/lib/conflictDetection";
+import { DecisionImpactPanel } from "@/components/conflicts/DecisionImpactPanel";
 import { Badge } from "@/components/ui/Badge";
 import {
   Sparkles,
@@ -137,6 +138,20 @@ export function ExtractionResultView({
                       {conf.suggestedResolution}
                     </p>
                   )}
+                  {conf.dependentSettingsNote && (
+                    <p className="text-amber-900 text-[11px] font-medium bg-amber-50 p-2 rounded-lg border border-amber-200">
+                      <strong>Dependent Setting Note: </strong>
+                      {conf.dependentSettingsNote}
+                    </p>
+                  )}
+                </div>
+
+                {/* Decision Impact Engine */}
+                <div className="pt-2 border-t border-rose-100">
+                  <DecisionImpactPanel
+                    conflict={conf}
+                    associatedTaskId={savedTasks[0]?.id}
+                  />
                 </div>
               </div>
             ))}
@@ -258,7 +273,8 @@ export function ExtractionResultView({
           ) : (
             <div className="space-y-3.5">
               {result.decisions.map((dec) => {
-                const hasConflict = detectedConflicts?.some((c) => c.newDecisionId === dec.id);
+                const matchingConflict = detectedConflicts?.find((c) => c.newDecisionId === dec.id);
+                const hasConflict = Boolean(matchingConflict);
 
                 return (
                   <div
@@ -275,9 +291,14 @@ export function ExtractionResultView({
                           {dec.category}
                         </Badge>
                         {hasConflict && (
-                          <Badge variant="conflict" className="text-[10px]">
-                            Conflict Flagged
-                          </Badge>
+                          <>
+                            <Badge variant="conflict" className="text-[10px]">
+                              Conflict Flagged
+                            </Badge>
+                            <Badge variant="conflict" className="text-[10px]">
+                              {matchingConflict?.severity || "Critical"} Severity
+                            </Badge>
+                          </>
                         )}
                       </div>
                       <span className="font-mono text-[10px] text-stone-400">
@@ -299,6 +320,28 @@ export function ExtractionResultView({
                         <Quote className="w-3 h-3 text-orange-600 shrink-0" />
                         <span className="font-medium text-stone-700">Attribution:</span>
                         <span className="truncate">{dec.speakerAttribution}</span>
+                      </div>
+                    )}
+
+                    {matchingConflict && (
+                      <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-900 text-xs space-y-1 mt-2">
+                        <div className="font-semibold flex items-center justify-between">
+                          <span>Contradiction with #{matchingConflict.historicalDecisionId.toUpperCase()}</span>
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-200 text-rose-900">
+                            {matchingConflict.severity}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-rose-800">{matchingConflict.conflictDescription}</p>
+                        {matchingConflict.suggestedResolution && (
+                          <p className="text-[11px] text-rose-950 font-medium">
+                            <strong>Resolution: </strong>{matchingConflict.suggestedResolution}
+                          </p>
+                        )}
+                        {matchingConflict.dependentSettingsNote && (
+                          <p className="text-[11px] text-amber-900 font-medium bg-amber-50 p-1.5 rounded border border-amber-200">
+                            <strong>Dependent Setting: </strong>{matchingConflict.dependentSettingsNote}
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>

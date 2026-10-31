@@ -20,6 +20,9 @@ export interface Decision {
   rationale: string;
   hasConflictWarning?: boolean;
   conflictNotes?: string;
+  conflictSeverity?: "Critical" | "Warning";
+  conflictResolution?: string;
+  dependentSettingsNote?: string;
 }
 
 export interface TaskItem {

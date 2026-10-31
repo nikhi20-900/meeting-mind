@@ -4,6 +4,7 @@ import React, { useState, useMemo } from "react";
 import { Decision, DecisionStatus } from "@/types";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { DecisionImpactPanel } from "@/components/conflicts/DecisionImpactPanel";
 import {
   Search,
   Filter,
@@ -23,6 +24,7 @@ export function DecisionList({ initialDecisions }: { initialDecisions: Decision[
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
+  const [expandedImpactId, setExpandedImpactId] = useState<string | null>(null);
 
   const categories = useMemo(() => {
     const set = new Set(initialDecisions.map((d) => d.category));
@@ -237,6 +239,12 @@ export function DecisionList({ initialDecisions }: { initialDecisions: Decision[
                       {decision.status}
                     </Badge>
 
+                    {decision.status === "Conflict Flagged" && (
+                      <Badge variant="conflict" className="text-[11px]">
+                        {decision.conflictSeverity || "Critical"} Severity
+                      </Badge>
+                    )}
+
                     <Badge variant="neutral">
                       {decision.category}
                     </Badge>
@@ -278,16 +286,73 @@ export function DecisionList({ initialDecisions }: { initialDecisions: Decision[
               {decision.hasConflictWarning && decision.conflictNotes && (
                 <div className="mt-3 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-xs flex items-start gap-2.5">
                   <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                  <div className="space-y-1">
-                    <div className="font-semibold text-rose-950 flex items-center gap-2">
-                      Cross-Meeting Conflict Flagged by Memory Engine
+                  <div className="space-y-1.5 flex-1 min-w-0">
+                    <div className="font-semibold text-rose-950 flex items-center justify-between gap-2">
+                      <span>Cross-Meeting Conflict Flagged by Memory Engine</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-200 text-rose-900 border border-rose-300">
+                        {decision.conflictSeverity || "Critical"} Severity
+                      </span>
                     </div>
                     <p className="text-rose-800 leading-relaxed">
                       {decision.conflictNotes}
                     </p>
-                    <div className="pt-1 text-[11px] text-rose-700 font-medium">
-                      Requires human resolution before downstream API throttles are locked in.
+                    {decision.conflictResolution ? (
+                      <div className="pt-1 text-[11px] text-rose-900 bg-rose-100/60 p-2 rounded-lg border border-rose-200/60 font-medium">
+                        <strong className="text-rose-950">Resolution Guidance: </strong>
+                        {decision.conflictResolution}
+                      </div>
+                    ) : (
+                      <div className="pt-1 text-[11px] text-rose-700 font-medium">
+                        {decision.category === "Governance"
+                          ? "Requires Security & Compliance review before modifying authentication or governance standards."
+                          : decision.category === "Architecture"
+                          ? "Requires Architecture sync to resolve infrastructure divergence and capacity constraints."
+                          : decision.category === "Client SLA"
+                          ? "Requires Client Success alignment before adjusting contractual service level thresholds."
+                          : "Requires human review and resolution before changes are adopted."}
+                      </div>
+                    )}
+                    {decision.dependentSettingsNote && (
+                      <div className="text-[11px] text-amber-900 bg-amber-50 p-2 rounded-lg border border-amber-200 font-medium">
+                        <strong className="text-amber-950">Dependent Configuration Note: </strong>
+                        {decision.dependentSettingsNote}
+                      </div>
+                    )}
+
+                    {/* Interactive Decision Impact Engine toggle */}
+                    <div className="pt-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExpandedImpactId(
+                            expandedImpactId === decision.id ? null : decision.id
+                          )
+                        }
+                        className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-orange-700 hover:text-orange-800 bg-orange-100/60 hover:bg-orange-100 px-2.5 py-1 rounded-lg border border-orange-200 transition-colors"
+                      >
+                        <Layers className="w-3.5 h-3.5 text-orange-600" />
+                        {expandedImpactId === decision.id
+                          ? "Hide Impact Engine"
+                          : "Analyze Decision Impact & Resolution Pathways"}
+                      </button>
                     </div>
+
+                    {expandedImpactId === decision.id && (
+                      <div className="pt-2">
+                        <DecisionImpactPanel
+                          conflict={{
+                            id: `conf-${decision.id}`,
+                            newDecisionText: decision.decisionText,
+                            historicalDecisionId: decision.id,
+                            historicalDecisionText: decision.decisionText,
+                            conflictDescription: decision.conflictNotes,
+                            severity: decision.conflictSeverity || "Critical",
+                            suggestedResolution: decision.conflictResolution,
+                            dependentSettingsNote: decision.dependentSettingsNote,
+                          }}
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

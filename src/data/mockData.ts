@@ -243,6 +243,11 @@ export const sampleDecisions: Decision[] = [
     hasConflictWarning: true,
     conflictNotes:
       "Potential Conflict with Decision DEC-02 (Oct 28): Enterprise tier contracts promised burst capacity up to 3,000 req/min without throttling.",
+    conflictSeverity: "Critical",
+    conflictResolution:
+      "Align API Platform engineering and Enterprise Client Success before adjusting client rate limits or connection pool headroom.",
+    dependentSettingsNote:
+      "Review dependent alert thresholds (85% alert rule) if rate limit adjustments are approved.",
   },
   {
     id: "dec-02",
@@ -258,6 +263,9 @@ export const sampleDecisions: Decision[] = [
     hasConflictWarning: true,
     conflictNotes:
       "Cross-meeting conflict: API team decided a 1,200 req/min hard ceiling on Oct 30.",
+    conflictSeverity: "Critical",
+    conflictResolution:
+      "Coordinate between Architecture and Sales Engineering to establish isolated burst capacity without compromising multi-tenant database stability.",
   },
   {
     id: "dec-03",
@@ -621,5 +629,23 @@ Discussion Points:
 - Next Steps:
    - Liam Patel to configure alert escalation matrix by Nov 8.
    - Claire Dupont to update customer master service agreements by Nov 12.`,
+  },
+  {
+    title: "Quarterly Access Control & Security Steering Review",
+    date: "2026-10-31",
+    recap: `Meeting: Security & Infrastructure Policy Review
+Attendees: Sarah Chen, Marcus Vance, Elena Rostova
+Date: Oct 31, 2026
+
+Discussion Points:
+1. Marcus noted that remote contractors experienced shipping delays receiving physical hardware security keys.
+2. Marcus proposed permitting engineers and contractors to use SMS 2FA for production database access when hardware keys are unavailable.
+3. Sarah pointed out that SMS authentication is vulnerable to SIM-swapping attacks and directly conflicts with our security policy codified in #DEC-06.
+4. Elena suggested tasking Sarah with investigating secure WebAuthn hardware key alternatives and expediting delivery for contractors.
+5. Final Decisions:
+   - Allow engineers to use SMS 2FA fallback for production database access when hardware keys are unavailable.
+6. Action Items:
+   - Sarah Chen: Investigate secure WebAuthn hardware key alternatives and expedite delivery for remote contractors by Nov 07.
+   - Marcus Vance: Configure SMS OTP fallback gateway by Nov 10.`,
   },
 ];

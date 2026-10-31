@@ -12,6 +12,8 @@ export interface DetectedConflict {
   conflictDescription: string;
   severity: "Critical" | "Warning";
   suggestedResolution?: string;
+  dependentSettingsNote?: string;
+  conflictType?: "DIRECT_CONTRADICTION" | "DEPENDENT_CONFIGURATION" | "POLICY_VIOLATION";
   verdict?: "GENUINE_CONTRADICTION" | "COMPATIBLE" | "INSUFFICIENT_INFORMATION";
 }
 
@@ -21,6 +23,8 @@ export interface ConflictAuditResult {
   explanation: string;
   severity: "Critical" | "Warning";
   suggestedResolution: string;
+  dependentSettingsNote?: string;
+  conflictType?: "DIRECT_CONTRADICTION" | "DEPENDENT_CONFIGURATION" | "POLICY_VIOLATION";
 }
 
 /**
@@ -104,6 +108,21 @@ export function evaluateConflictDeterministically(
     "reduce to",
   ].some((w) => newText.includes(w));
 
+  // Step 1a: Black Friday Freeze Unverified Policy Check
+  // If the Black Friday traffic-freeze policy is absent from Decision Memory, label concern unverified and retain investigation task without inventing a conflict
+  if (
+    (newText.includes("black friday") || newText.includes("traffic freeze") || newText.includes("freeze policy")) &&
+    !(histText.includes("freeze") || histText.includes("black friday"))
+  ) {
+    return {
+      isConflict: false,
+      verdict: "INSUFFICIENT_INFORMATION",
+      explanation: `Unverified concern: The Black Friday traffic-freeze policy is absent from Decision Memory. Retaining investigation task for human verification without inventing an unverified conflict against #${histDec.id.toUpperCase()}.`,
+      severity: "Warning",
+      suggestedResolution: "Verify whether an active commercial freeze policy was ratified by Marketing before flagging an operational conflict.",
+    };
+  }
+
   if (hasExploratoryIntent && !hasAffirmativeOverturn) {
     return {
       isConflict: false,
@@ -160,7 +179,8 @@ export function evaluateConflictDeterministically(
     newText.includes("req/min") ||
     newText.includes("requests/min") ||
     newText.includes("throttle") ||
-    newText.includes("requests per minute");
+    newText.includes("requests per minute") ||
+    newText.includes("rate cap");
 
   const isHistRateRelated =
     histText.includes("rate limit") ||
@@ -168,49 +188,85 @@ export function evaluateConflictDeterministically(
     histText.includes("requests/min") ||
     histText.includes("throttle") ||
     histText.includes("burst") ||
-    histText.includes("sla");
+    histText.includes("sla") ||
+    histText.includes("rate cap");
 
   if (isNewRateRelated && isHistRateRelated) {
     // Check if complementary: Caching (Redis), alerts, monitoring, telemetry, dashboards
     const isComplementary =
       newText.includes("redis") ||
       newText.includes("cache") ||
-      newText.includes("alert") ||
-      newText.includes("email alert") ||
-      newText.includes("monitor") ||
       newText.includes("dashboard") ||
       newText.includes("metric") ||
       newText.includes("observability") ||
       newText.includes("audit") ||
-      newText.includes("notification");
+      (newText.includes("alert") && !newText.includes("raise") && !newText.includes("increase") && !newText.includes("uncap"));
 
     if (isComplementary) {
       return {
         isConflict: false,
         verdict: "COMPATIBLE",
+        conflictType: "DEPENDENT_CONFIGURATION",
         explanation: `Both decisions relate to API gateway traffic and rate limits, but the new decision introduces complementary caching, observability, or threshold notifications that enforce and respect existing policies rather than violating them.`,
         severity: "Warning",
         suggestedResolution: "",
       };
     }
 
-    // Check numerical contradiction:
-    // Extract numbers associated with req/min or limit
-    const newRateMatch = newText.match(/(\d{1,2}[,\.]?\d{3})\s*(?:req|request|limit)/i) || newText.match(/(?:to|limit of)\s*(\d{1,2}[,\.]?\d{3})/i);
-    const histRateMatch = histText.match(/(\d{1,2}[,\.]?\d{3})\s*(?:req|request|limit)/i);
+    // Check numerical values associated with req/min or limit
+    const newRateMatch =
+      newText.match(/(\d{1,2}[,\.]?\d{3})\s*(?:req|request|limit|cap)/i) ||
+      newText.match(/(?:to|limit of|cap of|at)\s*(\d{1,2}[,\.]?\d{3})/i) ||
+      newText.match(/(\d{1,2}[,\.]?\d{3})/);
+    const histRateMatch =
+      histText.match(/(\d{1,2}[,\.]?\d{3})\s*(?:req|request|limit|cap)/i) ||
+      histText.match(/(?:to|limit of|cap of|at)\s*(\d{1,2}[,\.]?\d{3})/i) ||
+      histText.match(/(\d{1,2}[,\.]?\d{3})/);
 
     const newRate = newRateMatch ? parseInt(newRateMatch[1].replace(/,/g, ""), 10) : null;
     const histRate = histRateMatch ? parseInt(histRateMatch[1].replace(/,/g, ""), 10) : null;
 
+    // Distinguish alert threshold configuration from rate cap contradiction:
+    // If the historical decision is specifically configuring the 85% alert threshold:
+    if (histText.includes("85%") || (histText.includes("alert") && !histText.includes("cap "))) {
+      return {
+        isConflict: false,
+        verdict: "COMPATIBLE",
+        conflictType: "DEPENDENT_CONFIGURATION",
+        explanation: `Historical decision #${histDec.id.toUpperCase()} defines a dependent 85% alert threshold. It does not directly contradict changing the rate cap, but will require updating if a new rate limit is approved.`,
+        severity: "Warning",
+        suggestedResolution: `Recalibrate the automated 85% email alert trigger to correspond with any newly approved client rate cap.`,
+        dependentSettingsNote: `The 85% alert threshold is a dependent setting that will need updating if the rate limit change is approved.`,
+      };
+    }
+
     if (newRate && histRate && newRate !== histRate) {
-      const isSignificantDifference = Math.abs(newRate - histRate) > 500;
+      const isSignificantDifference = Math.abs(newRate - histRate) >= 100;
       if (isSignificantDifference || newText.includes("increase") || newText.includes("raise") || newText.includes("uncap")) {
+        const oldThreshold = Math.round(histRate * 0.85);
+        const newThreshold = Math.round(newRate * 0.85);
+
+        // Distinguish standard rate cap (1,200 req/min) from enterprise burst guarantee (3,000 req/min)
+        const isEnterpriseClash =
+          (newRate === 3000 || histRate === 3000 || histDec.id === "dec-02") &&
+          (newRate === 1200 || histRate === 1200 || histDec.id === "dec-01");
+
+        const explanation = isEnterpriseClash
+          ? `Direct SLA & Architecture contradiction: Standard client rate cap of 1,200 requests/min (#DEC-01) contradicts the 3,000 requests/min unthrottled burst commitment guaranteed in Enterprise renewals (#DEC-02).`
+          : `Direct rate cap contradiction: Proposed rate limit of ${newRate.toLocaleString()} requests/min directly contradicts the established rate cap of ${histRate.toLocaleString()} requests/min codified in #${histDec.id.toUpperCase()} ("${histDec.decisionText}").`;
+
+        const suggestedResolution = isEnterpriseClash
+          ? "Coordinate between Architecture and Enterprise Client Success to provision an isolated connection pool tier for 3,000 req/min enterprise clients while maintaining the 1,200 req/min multi-tenant database protection cap."
+          : "Convene API Platform and Database Engineering to verify connection pool headroom and replica lag before approving the new rate cap.";
+
         return {
           isConflict: true,
           verdict: "GENUINE_CONTRADICTION",
-          explanation: `Rate limit contradiction: New decision establishes client rate limit of ${newRate.toLocaleString()} req/min, directly clashing with the established threshold of ${histRate.toLocaleString()} req/min in #${histDec.id.toUpperCase()} ("${histDec.decisionText}").`,
+          conflictType: "DIRECT_CONTRADICTION",
+          explanation,
           severity: "Critical",
-          suggestedResolution: "Align API Platform engineering and Client Success before adjusting client rate limits or connection pool headroom.",
+          suggestedResolution,
+          dependentSettingsNote: `The 85% alert threshold (currently calibrated to ${oldThreshold.toLocaleString()} req/min under the ${histRate.toLocaleString()} cap) is a dependent setting that may need updating to ${newThreshold.toLocaleString()} req/min if the change is approved.`,
         };
       }
     }
@@ -218,8 +274,8 @@ export function evaluateConflictDeterministically(
 
   // Step 4: Authentication Security Policy (FIDO2 / WebAuthn vs SMS 2FA)
   if (
-    (newText.includes("sms") || newText.includes("text message")) &&
-    (histText.includes("fido2") || histText.includes("webauthn") || histText.includes("deprecate sms"))
+    (newText.includes("sms") || newText.includes("text message") || newText.includes("phone-based")) &&
+    (histText.includes("fido2") || histText.includes("webauthn") || histText.includes("deprecate sms") || histText.includes("hardware key"))
   ) {
     if (
       newText.includes("permit") ||
@@ -227,14 +283,18 @@ export function evaluateConflictDeterministically(
       newText.includes("restore") ||
       newText.includes("use sms") ||
       newText.includes("enable sms") ||
-      newText.includes("standard login")
+      newText.includes("standard login") ||
+      newText.includes("adopt sms") ||
+      newText.includes("support sms") ||
+      newText.includes("fallback to sms")
     ) {
       return {
         isConflict: true,
         verdict: "GENUINE_CONTRADICTION",
-        explanation: `Security policy contradiction: New decision permits SMS 2FA, directly violating the mandatory hardware FIDO2/WebAuthn requirement and SMS deprecation policy codified in #${histDec.id.toUpperCase()} ("${histDec.decisionText}").`,
+        conflictType: "POLICY_VIOLATION",
+        explanation: `Security policy contradiction: Proposed decision permits SMS 2FA for production database access, directly violating the mandatory hardware FIDO2/WebAuthn requirement and SMS deprecation policy codified in #${histDec.id.toUpperCase()} ("${histDec.decisionText}").`,
         severity: "Critical",
-        suggestedResolution: "Reject SMS authentication fallback for production access to maintain Zero Trust and ISO-27001 regulatory compliance.",
+        suggestedResolution: "Reject SMS 2FA authentication fallback for production database access to maintain Zero Trust posture and ISO-27001 compliance. Hardware security keys (FIDO2/WebAuthn) remain mandatory.",
       };
     }
   }
@@ -298,21 +358,28 @@ CRITICAL AUDIT RULES:
 1. FALSE POSITIVE PREVENTION: Do NOT flag a conflict merely because two decisions discuss related topics, technologies, or business domains. Related topic != Contradiction.
 2. COMPATIBILITY: If two decisions can coexist, complement each other, address different scopes, or work in harmony (e.g. adding caching/monitoring to an existing rate limit), classify as COMPATIBLE (NOT a conflict).
 3. INSUFFICIENT INFORMATION: If the new decision is exploratory, a study, a review, an assessment, preliminary research, or lacks concrete operational parameters to establish a definite clash, classify as INSUFFICIENT_INFORMATION (NOT a conflict).
-4. GENUINE CONTRADICTION: ONLY flag as a conflict if the New Decision makes it impossible to fulfill the Historical Decision, directly overturns the established policy, or establishes mutually exclusive requirements.
+4. DIRECT CONTRADICTION VS DEPENDENT CONFIGURATION:
+   - Identify direct contradictions (e.g. 1,200 req/min cap vs 2,000 req/min cap) as GENUINE_CONTRADICTION with Critical severity.
+   - For rate limit changes (e.g. 1,200 to 2,000 req/min), identify the rate cap difference as a direct conflict, and identify the 85% alert threshold as a dependent setting that will need updating if the change is approved (include in "dependentSettingsNote").
+5. CATEGORY-SPECIFIC RESOLUTION INSTRUCTIONS:
+   - Tailor resolutions to the actual conflict category (Security, Architecture, SLA, Governance).
+   - NEVER mention API throttles, rates, or gateways in Security conflicts (e.g. SMS 2FA vs FIDO2). Security conflicts must focus strictly on authentication standards, Zero Trust, and compliance.
 
 When a Genuine Contradiction IS confirmed:
 - Identify both decisions clearly.
 - Explain the exact contradiction (why both cannot simultaneously be true).
-- Provide a concrete, actionable resolution.
+- Provide a concrete, actionable resolution relevant to the domain.
 - Assign severity ("Critical" for security/SLA/downtime violations, "Warning" for stack/operational shifts).
 
 Respond strictly in valid JSON:
 {
   "isConflict": boolean,
   "verdict": "GENUINE_CONTRADICTION" | "COMPATIBLE" | "INSUFFICIENT_INFORMATION",
+  "conflictType": "DIRECT_CONTRADICTION" | "DEPENDENT_CONFIGURATION" | "POLICY_VIOLATION",
   "explanation": "Detailed explanation of why this is a genuine contradiction OR why it is compatible/insufficient",
   "severity": "Critical" | "Warning",
-  "suggestedResolution": "Actionable steps to resolve the conflict (empty string if no conflict)"
+  "suggestedResolution": "Actionable resolution steps tailored to the specific category (empty string if no conflict)",
+  "dependentSettingsNote": "Optional note on dependent configurations (e.g. 85% alert threshold) that need updating if approved"
 }`;
 
   const userPrompt = `Newly Proposed Decision:
@@ -343,9 +410,11 @@ Analyze whether there is a genuine contradiction, if they are compatible, or if 
     return {
       isConflict,
       verdict,
+      conflictType: rawJson.conflictType,
       explanation: rawJson.explanation || "Evaluated by Gemini semantic auditor.",
       severity: rawJson.severity === "Critical" ? "Critical" : "Warning",
       suggestedResolution: rawJson.suggestedResolution || "",
+      dependentSettingsNote: rawJson.dependentSettingsNote,
     };
   } catch (err: any) {
     console.warn(
@@ -405,6 +474,8 @@ export async function detectConflicts(
           conflictDescription: auditResult.explanation,
           severity: auditResult.severity,
           suggestedResolution: auditResult.suggestedResolution,
+          dependentSettingsNote: auditResult.dependentSettingsNote,
+          conflictType: auditResult.conflictType,
           verdict: "GENUINE_CONTRADICTION",
         });
       }

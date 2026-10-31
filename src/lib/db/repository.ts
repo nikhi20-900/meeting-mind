@@ -84,6 +84,45 @@ export async function updateTaskStatus(
   return updated;
 }
 
+export async function updateDecisionStatus(
+  decisionId: string,
+  newStatus: Decision["status"],
+  resolutionNotes?: string
+): Promise<Decision> {
+  const db = await readDatabase();
+  const index = db.decisions.findIndex((d) => d.id === decisionId);
+
+  if (index === -1) {
+    throw new Error(`Decision with id "${decisionId}" not found.`);
+  }
+
+  const updated: Decision = {
+    ...db.decisions[index],
+    status: newStatus,
+    conflictResolution: resolutionNotes || db.decisions[index].conflictResolution,
+    hasConflictWarning: newStatus === "Conflict Flagged",
+  };
+
+  db.decisions[index] = updated;
+
+  // If status is no longer Conflict Flagged, update corresponding conflict records
+  if (newStatus !== "Conflict Flagged") {
+    db.conflicts = db.conflicts.map((c) => {
+      if (c.sourceDecisionId === decisionId || c.targetDecisionId === decisionId) {
+        return {
+          ...c,
+          resolved: true,
+          resolutionNotes: resolutionNotes || c.resolutionNotes,
+        };
+      }
+      return c;
+    });
+  }
+
+  await writeDatabase(db);
+  return updated;
+}
+
 export async function saveExtractedMeetingData(params: {
   title: string;
   meetingDate: string;
@@ -128,6 +167,9 @@ export async function saveExtractedMeetingData(params: {
       rationale: dec.rationale,
       hasConflictWarning: !!matchingConflict,
       conflictNotes: matchingConflict ? matchingConflict.conflictDescription : undefined,
+      conflictSeverity: matchingConflict ? matchingConflict.severity : undefined,
+      conflictResolution: matchingConflict ? matchingConflict.suggestedResolution : undefined,
+      dependentSettingsNote: matchingConflict ? matchingConflict.dependentSettingsNote : undefined,
     };
   });
 
@@ -190,6 +232,7 @@ export async function saveExtractedMeetingData(params: {
     detectedAt: new Date().toISOString(),
     resolved: false,
     resolutionNotes: c.suggestedResolution,
+    dependentSettingsNote: c.dependentSettingsNote,
   }));
 
   // 7. Persist to storage

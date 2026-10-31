@@ -155,6 +155,14 @@ export function MeetingInputForm() {
           >
             Load: Client SLA Review
           </button>
+          <button
+            type="button"
+            onClick={() => handleLoadTemplate(2)}
+            className="px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-800 border border-orange-200 transition-colors cursor-pointer flex items-center gap-1"
+          >
+            <Sparkles className="w-3 h-3 text-orange-600" />
+            Load: Security & SMS 2FA Demo
+          </button>
           {(title || recapText) && (
             <button
               type="button"

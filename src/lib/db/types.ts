@@ -11,6 +11,7 @@ export interface ConflictRecord {
   detectedAt: string;
   resolved: boolean;
   resolutionNotes?: string;
+  dependentSettingsNote?: string;
 }
 
 export interface MeetingMindDatabase {
