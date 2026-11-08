@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Mic,
@@ -10,7 +10,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { sampleRecapTemplates } from "@/data/mockData";
-import { ExtractApiResponse } from "@/types/extraction";
+import { ExtractApiResponse, MeetingExtractionResult } from "@/types/extraction";
 import { ExtractionResultView } from "./ExtractionResultView";
 import { ApiKeySetupNotice } from "./ApiKeySetupNotice";
 
@@ -21,7 +21,7 @@ function localDateValue() {
 
 export function MeetingInputForm() {
   const [title, setTitle] = useState("");
-  const [meetingDate, setMeetingDate] = useState(localDateValue);
+  const [meetingDate, setMeetingDate] = useState("");
   const [recapText, setRecapText] = useState("");
   const [attendees, setAttendees] = useState("");
   const [sessionApiKey, setSessionApiKey] = useState("");
@@ -36,6 +36,10 @@ export function MeetingInputForm() {
   } | null>(null);
 
   const [extractionResponse, setExtractionResponse] = useState<ExtractApiResponse | null>(null);
+
+  useEffect(() => {
+    setMeetingDate(localDateValue());
+  }, []);
 
   const handleLoadTemplate = (index: number) => {
     const template = sampleRecapTemplates[index];
@@ -123,7 +127,7 @@ export function MeetingInputForm() {
     }
   };
 
-  const handleConfirmSave = async () => {
+  const handleConfirmSave = async (reviewedResult: MeetingExtractionResult) => {
     if (!extractionResponse || !extractionResponse.success) return;
     setIsSaving(true);
     setApiError(null);
@@ -136,7 +140,7 @@ export function MeetingInputForm() {
           date: meetingDate,
           recapText: recapText.trim(),
           attendees: attendees.trim(),
-          extraction: extractionResponse.result,
+          extraction: reviewedResult,
         }),
       });
       const data: ExtractApiResponse = await res.json();
