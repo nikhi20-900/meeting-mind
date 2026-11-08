@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Mic,
@@ -21,7 +21,7 @@ function localDateValue() {
 
 export function MeetingInputForm() {
   const [title, setTitle] = useState("");
-  const [meetingDate, setMeetingDate] = useState(localDateValue);
+  const [meetingDate, setMeetingDate] = useState("");
   const [recapText, setRecapText] = useState("");
   const [attendees, setAttendees] = useState("");
   const [sessionApiKey, setSessionApiKey] = useState("");
@@ -36,6 +36,10 @@ export function MeetingInputForm() {
   } | null>(null);
 
   const [extractionResponse, setExtractionResponse] = useState<ExtractApiResponse | null>(null);
+
+  useEffect(() => {
+    setMeetingDate(localDateValue());
+  }, []);
 
   const handleLoadTemplate = (index: number) => {
     const template = sampleRecapTemplates[index];
