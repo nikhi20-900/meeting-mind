@@ -51,7 +51,7 @@ flowchart TD
 
     subgraph Audit ["3. Cross-Meeting Policy Guardian"]
         F --> G["Semantic Contradiction Engine"]
-        H[("💾 Persistent Decision Memory<br/>(data/meeting_mind_db.json)")] <--> G
+        H[("💾 Persistent Decision Memory<br/>(PostgreSQL in production)")] <--> G
         G -->|Genuine Contradiction| I["🚨 Red Conflict Alert Card<br/>(Both Decisions + Analysis + Resolution)"]
         G -->|Compatible / Insufficient Info| J["✅ Active Decision Verified"]
     end
@@ -81,7 +81,7 @@ flowchart TD
 | **⚡ Server-Side Gemini Intelligence** | Runs `gemini-3.5-flash-lite` with automatic fallback to `gemini-3.8-flash` via `@google/genai`. | Sub-second extraction with zero browser API key exposure. |
 | **🛡️ Cross-Meeting Conflict Engine** | Automatically checks new decisions against historical memory for policy collisions. | Prevents contradictory engineering, SLA, and security commitments. |
 | **👤 Human-in-the-Loop Governance** | All proposed tasks start in **`Awaiting Approval`** and require explicit confirmation. | Protects team capacity by stopping AI agents from polluting task trackers. |
-| **💾 Zero-Config Atomic Persistence** | Mutex-queued file database (`data/meeting_mind_db.json`) persisting all state. | Survives page refreshes and server restarts with zero complex DB setup. |
+| **💾 Persistent Storage** | PostgreSQL with transaction-locked updates in hosted deployments; a local JSON store remains available for development. | Keeps hosted data durable across instances and prevents concurrent updates from overwriting each other. |
 | **📊 Executive Weekly Digest** | Aggregates decisions, assignments, and deadlines across teams and individual members. | Instant executive synthesis for 1:1s, sprint planning, and leadership reviews. |
 
 ---
@@ -173,6 +173,16 @@ Edit `.env.local`:
 GEMINI_API_KEY="your_gemini_api_key_here"
 ```
 
+Local development uses the sample JSON store by default. Hosted deployments must set `DATABASE_URL` to a PostgreSQL database (use the provider's pooled connection URL where applicable). Set `DATABASE_SSL=true` only when the provider requires TLS. Production fails closed when `DATABASE_URL` is missing; it never falls back to a local file.
+
+To move an existing local store into a new, empty PostgreSQL store, set `DATABASE_URL` and run:
+
+```bash
+npm run db:import-json
+```
+
+The importer stops if it finds existing records in PostgreSQL, so it will not overwrite an active store.
+
 ### Running Locally
 
 ```bash
@@ -196,7 +206,7 @@ npm start
 ```
 meeting-mind/
 ├── data/
-│   └── meeting_mind_db.json         # Lightweight atomic JSON database
+│   └── meeting_mind_db.json         # Development-only sample store
 ├── src/
 │   ├── app/
 │   │   ├── api/

@@ -583,7 +583,6 @@ export default function TaskTrackerPage() {
                           aria-busy={isActionRunning}
                           onClick={() => handleRejectTask(task.id)}
                           disabled={isActionRunning}
-                          type="button"
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl text-stone-700 bg-white border border-stone-300 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 disabled:opacity-50 transition-colors cursor-pointer shadow-2xs"
                           title="Reject and archive task"
                         >
@@ -596,7 +595,6 @@ export default function TaskTrackerPage() {
                           aria-busy={isActionRunning}
                           onClick={() => handleConfirmTask(task.id)}
                           disabled={isActionRunning}
-                          type="button"
                           className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-xl text-white bg-orange-600 hover:bg-orange-700 active:bg-orange-800 disabled:opacity-50 transition-colors shadow-2xs cursor-pointer"
                           title="Confirm task and authorize assignment"
                         >

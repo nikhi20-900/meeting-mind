@@ -1,4 +1,5 @@
-import { readDatabase, writeDatabase } from "./store";
+import { randomUUID } from "node:crypto";
+import { mutateDatabase, readDatabase } from "./store";
 import { Decision, MeetingSummary, TaskItem, DashboardStats, TaskStatus } from "@/types";
 import { MeetingExtractionResult } from "@/types/extraction";
 import { ConflictRecord } from "./types";
@@ -119,22 +120,18 @@ export async function updateTaskStatus(
   taskId: string,
   newStatus: TaskStatus
 ): Promise<TaskItem> {
-  const db = await readDatabase();
-  const index = db.tasks.findIndex((t) => t.id === taskId);
+  return mutateDatabase((db) => {
+    const index = db.tasks.findIndex((t) => t.id === taskId);
+    if (index === -1) throw new Error(`Task with id "${taskId}" not found.`);
 
-  if (index === -1) {
-    throw new Error(`Task with id "${taskId}" not found.`);
-  }
-
-  const updated: TaskItem = {
-    ...db.tasks[index],
-    status: newStatus,
-    requiresUserConfirmation: newStatus === "Awaiting Approval",
-  };
-
-  db.tasks[index] = updated;
-  await writeDatabase(db);
-  return updated;
+    const updated: TaskItem = {
+      ...db.tasks[index],
+      status: newStatus,
+      requiresUserConfirmation: newStatus === "Awaiting Approval",
+    };
+    db.tasks[index] = updated;
+    return updated;
+  });
 }
 
 export async function updateDecisionStatus(
@@ -142,38 +139,27 @@ export async function updateDecisionStatus(
   newStatus: Decision["status"],
   resolutionNotes?: string
 ): Promise<Decision> {
-  const db = await readDatabase();
-  const index = db.decisions.findIndex((d) => d.id === decisionId);
+  return mutateDatabase((db) => {
+    const index = db.decisions.findIndex((d) => d.id === decisionId);
+    if (index === -1) throw new Error(`Decision with id "${decisionId}" not found.`);
 
-  if (index === -1) {
-    throw new Error(`Decision with id "${decisionId}" not found.`);
-  }
+    const updated: Decision = {
+      ...db.decisions[index],
+      status: newStatus,
+      conflictResolution: resolutionNotes || db.decisions[index].conflictResolution,
+      hasConflictWarning: newStatus === "Conflict Flagged",
+    };
+    db.decisions[index] = updated;
 
-  const updated: Decision = {
-    ...db.decisions[index],
-    status: newStatus,
-    conflictResolution: resolutionNotes || db.decisions[index].conflictResolution,
-    hasConflictWarning: newStatus === "Conflict Flagged",
-  };
-
-  db.decisions[index] = updated;
-
-  // If status is no longer Conflict Flagged, update corresponding conflict records
-  if (newStatus !== "Conflict Flagged") {
-    db.conflicts = db.conflicts.map((c) => {
-      if (c.sourceDecisionId === decisionId || c.targetDecisionId === decisionId) {
-        return {
-          ...c,
-          resolved: true,
-          resolutionNotes: resolutionNotes || c.resolutionNotes,
-        };
-      }
-      return c;
-    });
-  }
-
-  await writeDatabase(db);
-  return updated;
+    if (newStatus !== "Conflict Flagged") {
+      db.conflicts = db.conflicts.map((conflict) =>
+        conflict.sourceDecisionId === decisionId || conflict.targetDecisionId === decisionId
+          ? { ...conflict, resolved: true, resolutionNotes: resolutionNotes || conflict.resolutionNotes }
+          : conflict
+      );
+    }
+    return updated;
+  });
 }
 
 export async function saveExtractedMeetingData(params: {
@@ -188,59 +174,56 @@ export async function saveExtractedMeetingData(params: {
   savedTasks: TaskItem[];
   detectedConflicts: DetectedConflict[];
 }> {
-  const db = await readDatabase();
-  const { title, meetingDate, recapText, attendees, extraction } = params;
+  const { title, extraction } = params;
+  const snapshot = await readDatabase();
+  const snapshotConflicts = await detectConflicts(extraction.decisions, snapshot.decisions, title);
 
-  // 1. Generate unique meeting ID
-  const meetingId = `mtg-${Date.now().toString().slice(-4)}`;
+  return mutateDatabase(async (db) => {
+    const { meetingDate, attendees } = params;
 
-  // 2. Perform Conflict Detection between new decisions and all existing historical decisions
-  const conflictsDetected = await detectConflicts(
-    extraction.decisions,
-    db.decisions,
-    title
-  );
+    // 1. Generate collision-resistant IDs before writing the transaction.
+    const meetingId = `mtg-${randomUUID()}`;
 
-  // 3. Map decisions, adding conflict flags if detected
-  const savedDecisions: Decision[] = extraction.decisions.map((dec, idx) => {
-    const matchingConflict = conflictsDetected.find(
-      (c) => c.newDecisionId === dec.id
-    );
+    // 2. Recheck against the latest decisions if another save completed meanwhile.
+    const conflictsDetected =
+      db.meta.version === snapshot.meta.version
+        ? snapshotConflicts
+        : await detectConflicts(extraction.decisions, db.decisions, title);
 
-    const decisionId = `dec-${Date.now().toString().slice(-4)}-${idx + 1}`;
+    // 3. Save decisions with stable persisted IDs and their review status.
+    const persistedDecisionIds = new Map<string, string>();
+    const savedDecisions: Decision[] = extraction.decisions.map((dec) => {
+      const matchingConflict = conflictsDetected.find((conflict) => conflict.newDecisionId === dec.id);
+      const decisionId = `dec-${randomUUID()}`;
+      persistedDecisionIds.set(dec.id, decisionId);
 
-    return {
-      id: decisionId,
-      date: meetingDate || "Unknown",
-      meetingReference: title,
-      meetingId: meetingId,
-      category: dec.category,
-      status: matchingConflict ? "Conflict Flagged" : dec.status,
-      confidenceScore: dec.confidenceScore,
-      decisionText: dec.decisionText,
-      rationale: dec.rationale,
-      hasConflictWarning: !!matchingConflict,
-      conflictNotes: matchingConflict ? matchingConflict.conflictDescription : undefined,
-      conflictSeverity: matchingConflict ? matchingConflict.severity : undefined,
-      conflictResolution: matchingConflict ? matchingConflict.suggestedResolution : undefined,
-      dependentSettingsNote: matchingConflict ? matchingConflict.dependentSettingsNote : undefined,
-    };
-  });
+      return {
+        id: decisionId,
+        date: meetingDate || "Unknown",
+        meetingReference: title,
+        meetingId,
+        category: dec.category,
+        status: matchingConflict ? "Conflict Flagged" : dec.status,
+        confidenceScore: dec.confidenceScore,
+        decisionText: dec.decisionText,
+        rationale: dec.rationale,
+        hasConflictWarning: !!matchingConflict,
+        conflictNotes: matchingConflict?.conflictDescription,
+        conflictSeverity: matchingConflict?.severity,
+        conflictResolution: matchingConflict?.suggestedResolution,
+        dependentSettingsNote: matchingConflict?.dependentSettingsNote,
+      };
+    });
 
-  // 4. Map action items to persistent tasks
-  // CRITICAL REQUIREMENT: Do NOT create confirmed tasks automatically.
-  // Keep tasks awaiting human approval until the user explicitly confirms them.
-  const savedTasks: TaskItem[] = extraction.actionItems.map((action, idx) => {
-    const taskId = `tsk-${Date.now().toString().slice(-4)}-${idx + 1}`;
-
-    return {
-      id: taskId,
+    // 4. Keep proposed tasks awaiting explicit human approval.
+    const savedTasks: TaskItem[] = extraction.actionItems.map((action) => ({
+      id: `tsk-${randomUUID()}`,
       title: action.title,
       owner: {
         name: action.ownerName || "Unknown",
         avatar: (action.ownerName || "UN")
           .split(" ")
-          .map((n) => n[0])
+          .map((name) => name[0])
           .join("")
           .slice(0, 2)
           .toUpperCase(),
@@ -248,60 +231,55 @@ export async function saveExtractedMeetingData(params: {
       },
       dueDate: action.deadline || "Unknown",
       priority: action.priority || "Unknown",
-      status: "Awaiting Approval", // MUST be Awaiting Approval per requirement!
+      status: "Awaiting Approval",
       associatedMeeting: title,
       associatedDecisionId: savedDecisions[0]?.id,
       associatedDecisionText: savedDecisions[0]?.decisionText,
-      requiresUserConfirmation: true, // Always requires human confirmation
+      requiresUserConfirmation: true,
+    }));
+
+    const participantList = attendees
+      ? attendees.split(",").map((name) => name.trim()).filter(Boolean)
+      : extraction.speakers.map((speaker) => speaker.name);
+
+    const newMeeting: MeetingSummary = {
+      id: meetingId,
+      title,
+      date: meetingDate || "Unknown",
+      duration: "Unknown",
+      participants: participantList,
+      status: "Processed",
+      decisionsCount: savedDecisions.length,
+      tasksCount: savedTasks.length,
+      conflictsDetected: conflictsDetected.length,
+      snippet: extraction.summary.executiveSummary.slice(0, 200),
+    };
+
+    const newConflictRecords: ConflictRecord[] = conflictsDetected.map((conflict) => ({
+      id: conflict.id,
+      sourceDecisionId: persistedDecisionIds.get(conflict.newDecisionId) || conflict.newDecisionId,
+      targetDecisionId: conflict.historicalDecisionId,
+      sourceMeetingTitle: title,
+      targetMeetingTitle: conflict.historicalMeetingTitle,
+      description: conflict.conflictDescription,
+      severity: conflict.severity,
+      detectedAt: new Date().toISOString(),
+      resolved: false,
+      resolutionNotes: conflict.suggestedResolution,
+      dependentSettingsNote: conflict.dependentSettingsNote,
+    }));
+
+    db.meetings.unshift(newMeeting);
+    db.decisions.unshift(...savedDecisions);
+    db.tasks.unshift(...savedTasks);
+    db.conflicts.unshift(...newConflictRecords);
+
+    return {
+      meeting: newMeeting,
+      savedDecisions,
+      savedTasks,
+      detectedConflicts: conflictsDetected,
     };
   });
-
-  // 5. Create new MeetingSummary record
-  const participantList = attendees
-    ? attendees.split(",").map((s) => s.trim()).filter(Boolean)
-    : extraction.speakers.map((s) => s.name);
-
-  const newMeeting: MeetingSummary = {
-    id: meetingId,
-    title: title,
-    date: meetingDate || "Unknown",
-    duration: "30 min",
-    participants: participantList,
-    status: "Processed",
-    decisionsCount: savedDecisions.length,
-    tasksCount: savedTasks.length,
-    conflictsDetected: conflictsDetected.length,
-    snippet: extraction.summary.executiveSummary.slice(0, 200),
-  };
-
-  // 6. Record conflicts into persistent conflict register
-  const newConflictRecords: ConflictRecord[] = conflictsDetected.map((c) => ({
-    id: c.id,
-    sourceDecisionId: c.newDecisionId,
-    targetDecisionId: c.historicalDecisionId,
-    sourceMeetingTitle: title,
-    targetMeetingTitle: c.historicalMeetingTitle,
-    description: c.conflictDescription,
-    severity: c.severity,
-    detectedAt: new Date().toISOString(),
-    resolved: false,
-    resolutionNotes: c.suggestedResolution,
-    dependentSettingsNote: c.dependentSettingsNote,
-  }));
-
-  // 7. Persist to storage
-  db.meetings.unshift(newMeeting);
-  db.decisions.unshift(...savedDecisions);
-  db.tasks.unshift(...savedTasks);
-  db.conflicts.unshift(...newConflictRecords);
-
-  await writeDatabase(db);
-
-  return {
-    meeting: newMeeting,
-    savedDecisions,
-    savedTasks,
-    detectedConflicts: conflictsDetected,
-  };
 }
 
