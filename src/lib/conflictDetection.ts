@@ -1,4 +1,5 @@
 import { Decision } from "@/types";
+import { randomUUID } from "node:crypto";
 import { ExtractedDecision } from "@/types/extraction";
 import { generateGeminiExtraction, sanitizeErrorMessage } from "@/lib/gemini";
 
@@ -465,7 +466,7 @@ export async function detectConflicts(
 
       if (auditResult.isConflict && auditResult.verdict === "GENUINE_CONTRADICTION") {
         detected.push({
-          id: `conf-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          id: `conf-${randomUUID()}`,
           newDecisionId: newDec.id,
           newDecisionText: newDec.decisionText,
           historicalDecisionId: histDec.id,
