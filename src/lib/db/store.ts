@@ -14,6 +14,9 @@ type DatabaseMutation<T> = (database: MeetingMindDatabase) => T | Promise<T>;
 const globalForPg = globalThis as typeof globalThis & { meetingMindPool?: Pool };
 let writeQueue = Promise.resolve();
 let schemaReady: Promise<void> | undefined;
+let rateLimitSchemaReady: Promise<void> | undefined;
+const localRateLimits = new Map<string, { count: number; resetAt: number }>();
+let rateLimitOperations = 0;
 
 const initialConflicts: MeetingMindDatabase["conflicts"] = [
   {
@@ -176,5 +179,58 @@ export async function mutateDatabase<T>(mutation: DatabaseMutation<T>): Promise<
   } finally {
     client.release();
   }
+}
+
+export async function consumeRateLimit(
+  key: string,
+  limit: number,
+  windowMs: number
+): Promise<{ allowed: boolean; retryAfterSeconds: number }> {
+  if (!usePostgres()) {
+    const now = Date.now();
+    const current = localRateLimits.get(key);
+    if (!current || current.resetAt <= now) {
+      localRateLimits.set(key, { count: 1, resetAt: now + windowMs });
+      return { allowed: true, retryAfterSeconds: Math.ceil(windowMs / 1000) };
+    }
+    current.count += 1;
+    return {
+      allowed: current.count <= limit,
+      retryAfterSeconds: Math.max(1, Math.ceil((current.resetAt - now) / 1000)),
+    };
+  }
+
+  if (!rateLimitSchemaReady) {
+    rateLimitSchemaReady = getPool().query(`
+      CREATE TABLE IF NOT EXISTS meeting_mind_rate_limits (
+        key TEXT PRIMARY KEY,
+        count INTEGER NOT NULL,
+        reset_at TIMESTAMPTZ NOT NULL
+      )
+    `).then(() => undefined).catch((error) => {
+      rateLimitSchemaReady = undefined;
+      throw error;
+    });
+  }
+  await rateLimitSchemaReady;
+  rateLimitOperations += 1;
+  if (rateLimitOperations % 250 === 0) {
+    await getPool().query("DELETE FROM meeting_mind_rate_limits WHERE reset_at < NOW() - INTERVAL '1 day'");
+  }
+
+  const windowSeconds = Math.max(1, Math.ceil(windowMs / 1000));
+  const result = await getPool().query<{ count: number; retry_after: number }>(
+    `INSERT INTO meeting_mind_rate_limits (key, count, reset_at)
+     VALUES ($1, 1, NOW() + make_interval(secs => $2))
+     ON CONFLICT (key) DO UPDATE SET
+       count = CASE WHEN meeting_mind_rate_limits.reset_at <= NOW() THEN 1 ELSE meeting_mind_rate_limits.count + 1 END,
+       reset_at = CASE WHEN meeting_mind_rate_limits.reset_at <= NOW() THEN NOW() + make_interval(secs => $2) ELSE meeting_mind_rate_limits.reset_at END
+     RETURNING count, GREATEST(1, CEIL(EXTRACT(EPOCH FROM (reset_at - NOW()))))::INTEGER AS retry_after`,
+    [key, windowSeconds]
+  );
+  return {
+    allowed: result.rows[0].count <= limit,
+    retryAfterSeconds: result.rows[0].retry_after,
+  };
 }
 

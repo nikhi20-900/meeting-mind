@@ -173,7 +173,9 @@ Edit `.env.local`:
 GEMINI_API_KEY="your_gemini_api_key_here"
 ```
 
-Local development uses the sample JSON store by default. Hosted deployments must set `DATABASE_URL` to a PostgreSQL database (use the provider's pooled connection URL where applicable). Set `DATABASE_SSL=true` only when the provider requires TLS. Production fails closed when `DATABASE_URL` is missing; it never falls back to a local file.
+Local development uses the sample JSON store by default. Hosted deployments must set `DATABASE_URL` to a PostgreSQL database (use the provider's pooled connection URL where applicable), `MEETING_MIND_ACCESS_KEY`, and a separate `MEETING_MIND_SESSION_SECRET`. Set `DATABASE_SSL=true` only when the provider requires TLS. Production fails closed when these settings are missing; it never falls back to a local file or open API access.
+
+The editor key can read and update the workspace. Optionally set `MEETING_MIND_VIEW_KEY` for read-only access. These are shared workspace keys rather than individual accounts; this phase does not add SSO, per-person audit identity, or multiple isolated workspaces. Requests use signed, HTTP-only sessions, same-origin checks on changes, body size limits, and PostgreSQL-backed rate limits. Meeting extraction is limited to 10 requests per minute and 200 per day per signed session.
 
 To move an existing local store into a new, empty PostgreSQL store, set `DATABASE_URL` and run:
 

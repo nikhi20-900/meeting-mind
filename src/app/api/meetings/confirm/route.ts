@@ -2,10 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { saveExtractedMeetingData } from "@/lib/db/repository";
 import { validateExtractionResult } from "@/lib/validateExtraction";
 import { ExtractApiResponse } from "@/types/extraction";
+import { authenticateApiRequest, enforceRateLimit, readJsonBody } from "@/lib/apiSecurity";
 
 export async function POST(req: NextRequest) {
+  const denied = authenticateApiRequest(req, { mutation: true });
+  if (denied) return denied;
+  const limited = await enforceRateLimit(req, "meeting-confirm", 40, 60_000);
+  if (limited) return limited;
+  const parsed = await readJsonBody(req, 512 * 1024);
+  if (parsed.response) return parsed.response;
+
   try {
-    const body = await req.json();
+    const body = parsed.body;
     const { title, date, recapText, attendees, extraction } = body;
 
     if (typeof title !== "string" || !title.trim()) {
@@ -27,12 +35,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const meetingDate =
-      typeof date === "string" && date ? date : new Date().toISOString().slice(0, 10);
+    const meetingDate = typeof date === "string" && date.trim() ? date.trim() : "Unknown";
     const result = validateExtractionResult(extraction, {
       title: title.trim(),
       meetingDate,
-      provider: typeof extraction.metadata?.provider === "string" ? extraction.metadata.provider : "Google Gemini",
+      provider: typeof extraction.metadata?.provider === "string" ? extraction.metadata.provider : "Unknown",
       model: typeof extraction.metadata?.model === "string" ? extraction.metadata.model : "unknown",
     });
 
