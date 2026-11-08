@@ -10,7 +10,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { sampleRecapTemplates } from "@/data/mockData";
-import { ExtractApiResponse } from "@/types/extraction";
+import { ExtractApiResponse, MeetingExtractionResult } from "@/types/extraction";
 import { ExtractionResultView } from "./ExtractionResultView";
 import { ApiKeySetupNotice } from "./ApiKeySetupNotice";
 
@@ -127,7 +127,7 @@ export function MeetingInputForm() {
     }
   };
 
-  const handleConfirmSave = async () => {
+  const handleConfirmSave = async (reviewedResult: MeetingExtractionResult) => {
     if (!extractionResponse || !extractionResponse.success) return;
     setIsSaving(true);
     setApiError(null);
@@ -140,7 +140,7 @@ export function MeetingInputForm() {
           date: meetingDate,
           recapText: recapText.trim(),
           attendees: attendees.trim(),
-          extraction: extractionResponse.result,
+          extraction: reviewedResult,
         }),
       });
       const data: ExtractApiResponse = await res.json();

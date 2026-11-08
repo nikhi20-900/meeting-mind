@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { MeetingExtractionResult } from "@/types/extraction";
+import { ExtractedDecision, MeetingExtractionResult } from "@/types/extraction";
 import { Decision, TaskItem } from "@/types";
 import { DetectedConflict } from "@/lib/conflictDetection";
 import { DecisionImpactPanel } from "@/components/conflicts/DecisionImpactPanel";
@@ -31,7 +31,7 @@ interface ExtractionResultViewProps {
   savedTasks?: TaskItem[];
   detectedConflicts?: DetectedConflict[];
   onReset?: () => void;
-  onConfirmSave?: () => void;
+  onConfirmSave?: (reviewedResult: MeetingExtractionResult) => void;
   isSaving?: boolean;
 }
 
@@ -46,6 +46,42 @@ export function ExtractionResultView({
   isSaving = false,
 }: ExtractionResultViewProps) {
   const [copied, setCopied] = useState(false);
+  const [reviewedDecisions, setReviewedDecisions] = useState<ExtractedDecision[]>(result.decisions);
+  const [setAsideDecisions, setSetAsideDecisions] = useState<ExtractedDecision[]>([]);
+  const [editingDecision, setEditingDecision] = useState<ExtractedDecision | null>(null);
+  const [decisionError, setDecisionError] = useState<string | null>(null);
+
+  const currentConflicts = (detectedConflicts || []).filter((conflict) =>
+    reviewedDecisions.some(
+      (decision) =>
+        decision.id === conflict.newDecisionId &&
+        (!conflict.newDecisionText || conflict.newDecisionText === decision.decisionText)
+    )
+  );
+
+  const handleSetAsideDecision = (decision: ExtractedDecision) => {
+    setReviewedDecisions((current) => current.filter((item) => item.id !== decision.id));
+    setSetAsideDecisions((current) => [...current, decision]);
+    if (editingDecision?.id === decision.id) setEditingDecision(null);
+  };
+
+  const handleRestoreDecision = (decision: ExtractedDecision) => {
+    setSetAsideDecisions((current) => current.filter((item) => item.id !== decision.id));
+    setReviewedDecisions((current) => [...current, decision]);
+  };
+
+  const handleSaveDecisionEdit = () => {
+    if (!editingDecision) return;
+    if (!editingDecision.decisionText.trim()) {
+      setDecisionError("Add the decision wording, or set this item aside.");
+      return;
+    }
+    setReviewedDecisions((current) =>
+      current.map((item) => (item.id === editingDecision.id ? editingDecision : item))
+    );
+    setEditingDecision(null);
+    setDecisionError(null);
+  };
 
   const handleCopyJson = () => {
     navigator.clipboard.writeText(JSON.stringify(result, null, 2));
@@ -82,18 +118,18 @@ export function ExtractionResultView({
       )}
 
       {/* Conflict Detection Banner (if any conflict detected) */}
-      {detectedConflicts && detectedConflicts.length > 0 && (
+      {currentConflicts.length > 0 && (
         <div className="p-5 rounded-2xl bg-rose-50 border border-rose-300 text-rose-950 shadow-2xs space-y-3">
           <div className="flex items-center gap-2 text-rose-900 font-bold text-sm">
             <ShieldAlert className="w-5 h-5 text-rose-600 shrink-0" />
-            <span>Possible conflict with an earlier decision ({detectedConflicts.length})</span>
+            <span>Possible conflict with an earlier decision ({currentConflicts.length})</span>
             <span className="text-[10px] bg-rose-200/80 text-rose-950 px-2 py-0.5 rounded-full font-semibold border border-rose-300">
               Review suggested
             </span>
           </div>
 
           <div className="space-y-2.5">
-            {detectedConflicts.map((conf) => (
+            {currentConflicts.map((conf) => (
               <div
                 key={conf.id}
                 className="p-4 rounded-xl bg-white/95 border border-rose-200 text-xs space-y-2.5 shadow-2xs"
@@ -257,23 +293,29 @@ export function ExtractionResultView({
                   Extracted Decisions
                 </h3>
                 <p className="text-[11px] text-stone-500">
-                  Indexed in Decision Memory
+                  Edit or set aside before saving
                 </p>
               </div>
             </div>
             <span className="text-xs bg-stone-100 px-2 py-0.5 rounded-full font-medium text-stone-700">
-              {result.decisions.length} decisions
+              {reviewedDecisions.length} to add
             </span>
           </div>
 
-          {result.decisions.length === 0 ? (
+          {!isPersisted && (
+            <p className="-mt-2 text-xs text-stone-600">
+              Only the decisions listed here will be added. Edits are checked for conflicts again when you save.
+            </p>
+          )}
+
+          {reviewedDecisions.length === 0 ? (
             <p className="text-xs text-stone-500 py-6 text-center">
-              No explicit consensus decisions detected in this transcript.
+              No decisions selected. You can still save the meeting and its proposed tasks.
             </p>
           ) : (
             <div className="space-y-3.5">
-              {result.decisions.map((dec) => {
-                const matchingConflict = detectedConflicts?.find((c) => c.newDecisionId === dec.id);
+              {reviewedDecisions.map((dec) => {
+                const matchingConflict = currentConflicts.find((c) => c.newDecisionId === dec.id);
                 const hasConflict = Boolean(matchingConflict);
 
                 return (
@@ -306,16 +348,67 @@ export function ExtractionResultView({
                       </span>
                     </div>
 
-                    <p className="text-sm font-semibold text-stone-900 leading-snug">
-                      {dec.decisionText}
-                    </p>
+                    {editingDecision?.id === dec.id ? (
+                      <div className="space-y-3 rounded-lg border border-stone-200 bg-white p-3">
+                        <label className="block space-y-1 text-xs font-medium text-stone-700">
+                          <span>Decision</span>
+                          <textarea
+                            value={editingDecision.decisionText}
+                            onChange={(event) => setEditingDecision((current) => current ? { ...current, decisionText: event.target.value } : current)}
+                            rows={3}
+                            className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm font-normal text-stone-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-600"
+                          />
+                        </label>
+                        <label className="block space-y-1 text-xs font-medium text-stone-700">
+                          <span>Context or reason</span>
+                          <textarea
+                            value={editingDecision.rationale}
+                            onChange={(event) => setEditingDecision((current) => current ? { ...current, rationale: event.target.value } : current)}
+                            rows={2}
+                            className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm font-normal text-stone-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-600"
+                          />
+                        </label>
+                        <label className="block space-y-1 text-xs font-medium text-stone-700">
+                          <span>Category</span>
+                          <select
+                            value={editingDecision.category}
+                            onChange={(event) => setEditingDecision((current) => current ? { ...current, category: event.target.value as ExtractedDecision["category"] } : current)}
+                            className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-normal text-stone-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-600"
+                          >
+                            {(["Architecture", "Product", "Governance", "Client SLA", "Operations"] as const).map((category) => (
+                              <option key={category} value={category}>{category}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="block space-y-1 text-xs font-medium text-stone-700">
+                          <span>Who said it (optional)</span>
+                          <input
+                            value={editingDecision.speakerAttribution}
+                            onChange={(event) => setEditingDecision((current) => current ? { ...current, speakerAttribution: event.target.value } : current)}
+                            className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm font-normal text-stone-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-600"
+                          />
+                        </label>
+                        {decisionError && <p role="alert" className="text-xs text-rose-700">{decisionError}</p>}
+                        <div className="flex flex-wrap gap-2">
+                          <button type="button" onClick={handleSaveDecisionEdit} className="rounded-lg bg-stone-900 px-3 py-2 text-xs font-semibold text-white hover:bg-stone-800">Save edits</button>
+                          <button type="button" onClick={() => { setEditingDecision(null); setDecisionError(null); }} className="rounded-lg border border-stone-300 px-3 py-2 text-xs font-medium text-stone-700 hover:bg-stone-50">Cancel</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-sm font-semibold text-stone-900 leading-snug">{dec.decisionText}</p>
+                        <div className="text-xs text-stone-600 bg-white p-2.5 rounded-lg border border-stone-100">
+                          <span className="font-medium text-stone-700">Context: </span>
+                          {dec.rationale || "Not provided"}
+                        </div>
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          <button type="button" onClick={() => { setEditingDecision({ ...dec }); setDecisionError(null); }} className="rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-xs font-medium text-stone-700 hover:bg-stone-50">Edit</button>
+                          <button type="button" onClick={() => handleSetAsideDecision(dec)} className="rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-xs font-medium text-stone-700 hover:border-rose-300 hover:text-rose-800">Set aside</button>
+                        </div>
+                      </>
+                    )}
 
-                    <div className="text-xs text-stone-600 bg-white p-2.5 rounded-lg border border-stone-100">
-                      <span className="font-medium text-stone-700">Rationale: </span>
-                      {dec.rationale}
-                    </div>
-
-                    {dec.speakerAttribution && (
+                    {dec.speakerAttribution && editingDecision?.id !== dec.id && (
                       <div className="flex items-center gap-1.5 text-[11px] text-stone-500 pt-1">
                         <Quote className="w-3 h-3 text-orange-600 shrink-0" />
                         <span className="font-medium text-stone-700">Attribution:</span>
@@ -351,7 +444,7 @@ export function ExtractionResultView({
           )}
         </div>
 
-        {/* Proposed tasks Section */}
+      {/* Proposed tasks Section */}
         <div className="bg-white rounded-2xl border border-stone-200/90 shadow-2xs p-5 sm:p-6 space-y-4">
           <div className="flex items-center justify-between border-b border-stone-100 pb-3">
             <div className="flex items-center gap-2">
@@ -448,6 +541,23 @@ export function ExtractionResultView({
         </div>
       </div>
 
+      {setAsideDecisions.length > 0 && !isPersisted && (
+        <section aria-labelledby="set-aside-decisions" className="rounded-2xl border border-stone-200 bg-stone-50 p-5 sm:p-6">
+          <div className="mb-3">
+            <h3 id="set-aside-decisions" className="text-sm font-semibold text-stone-900">Set aside</h3>
+            <p className="mt-1 text-xs text-stone-600">These decisions will not be added to memory unless you restore them.</p>
+          </div>
+          <ul className="space-y-2">
+            {setAsideDecisions.map((decision) => (
+              <li key={decision.id} className="flex flex-col gap-2 rounded-lg border border-stone-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
+                <span className="text-sm text-stone-700">{decision.decisionText}</span>
+                <button type="button" onClick={() => handleRestoreDecision(decision)} className="shrink-0 rounded-lg border border-stone-300 px-3 py-1.5 text-xs font-medium text-stone-700 hover:bg-stone-50">Restore</button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {/* Identified Speakers Card */}
       {result.speakers && result.speakers.length > 0 && (
         <div className="bg-white rounded-2xl border border-stone-200/90 shadow-2xs p-5 sm:p-6 space-y-3">
@@ -484,14 +594,14 @@ export function ExtractionResultView({
           <p className="mt-1 text-xs text-stone-600">
             {isPersisted
               ? "You can review task approvals or return to your decision memory."
-              : "Saving adds the meeting and its decisions. Tasks stay in Awaiting Approval."}
+              : "Saving adds the meeting and decisions you keep. Tasks stay in Awaiting Approval."}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {!isPersisted && onConfirmSave && (
             <button
               type="button"
-              onClick={onConfirmSave}
+              onClick={() => onConfirmSave({ ...result, decisions: reviewedDecisions })}
               disabled={isSaving}
               aria-busy={isSaving}
               className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-orange-700 px-4 text-sm font-medium text-white transition-colors hover:bg-orange-800 disabled:cursor-wait disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-700 focus-visible:ring-offset-2"
