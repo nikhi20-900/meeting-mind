@@ -3,143 +3,62 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  Search,
-  Menu,
-  Plus,
-  Bell,
-  Sparkles,
-  Command,
-} from "lucide-react";
+import { Menu, Plus } from "lucide-react";
 
 interface TopHeaderProps {
   onToggleMobileMenu: () => void;
-  isSidebarCollapsed: boolean;
+}
+
+function getPageMeta(pathname: string) {
+  if (pathname === "/") {
+    return { title: "Overview", subtitle: "Recent meetings, decisions, and work to review" };
+  }
+  if (pathname.startsWith("/new-meeting")) {
+    return { title: "New meeting", subtitle: "Add a recap and review what the team agreed" };
+  }
+  if (pathname.startsWith("/decision-memory")) {
+    return { title: "Decision memory", subtitle: "Find and review decisions from past meetings" };
+  }
+  if (pathname.startsWith("/tasks")) {
+    return { title: "Tasks", subtitle: "Review proposed work and track what is in progress" };
+  }
+  if (pathname.startsWith("/weekly-digest")) {
+    return { title: "Weekly digest", subtitle: "A summary of decisions, tasks, and deadlines" };
+  }
+  return { title: "MeetingMind", subtitle: "" };
 }
 
 export function TopHeader({ onToggleMobileMenu }: TopHeaderProps) {
   const pathname = usePathname();
-
-  const getPageMeta = () => {
-    if (pathname === "/") {
-      return {
-        title: "Executive Dashboard",
-        subtitle: "Decision health, cross-meeting commitments, and conflict status",
-      };
-    }
-    if (pathname.startsWith("/new-meeting")) {
-      return {
-        title: "New Meeting Processing",
-        subtitle: "Capture discussions via Wispr Flow dictation or transcript input",
-      };
-    }
-    if (pathname.startsWith("/decision-memory")) {
-      return {
-        title: "Decision Memory",
-        subtitle: "Auditable organizational repository of commitments and consensus",
-      };
-    }
-    if (pathname.startsWith("/tasks")) {
-      return {
-        title: "Task Tracker",
-        subtitle: "Agent-proposed actions awaiting user confirmation and deadlines",
-      };
-    }
-    if (pathname.startsWith("/weekly-digest")) {
-      return {
-        title: "Weekly Digestion",
-        subtitle: "Synthesized executive briefing of weekly decisions and open resolutions",
-      };
-    }
-    return {
-      title: "Meeting Mind",
-      subtitle: "Agentic AI Meeting & Decision Intelligence",
-    };
-  };
-
-  const { title, subtitle } = getPageMeta();
+  const { title, subtitle } = getPageMeta(pathname);
 
   return (
-    <header className="sticky top-0 z-30 bg-[#FBF9F5]/90 backdrop-blur-md border-b border-stone-200/80 px-4 sm:px-8 py-3.5 flex items-center justify-between gap-4 transition-all">
-      {/* Left: Mobile trigger & Page Title */}
-      <div className="flex items-center gap-3 min-w-0">
+    <header className="sticky top-0 z-30 flex min-h-16 items-center justify-between gap-4 border-b border-stone-200/80 bg-[#F8F6F0]/95 px-4 py-3 backdrop-blur-sm sm:px-7">
+      <div className="flex min-w-0 items-center gap-3">
         <button
           onClick={onToggleMobileMenu}
           type="button"
-          className="lg:hidden p-2 rounded-xl text-stone-600 hover:text-stone-900 hover:bg-stone-100 border border-stone-200 cursor-pointer"
+          className="rounded-md border border-stone-200 bg-white p-2 text-stone-600 transition-colors hover:bg-stone-100 hover:text-stone-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-600 lg:hidden"
           aria-label="Open navigation menu"
+          aria-haspopup="true"
         >
-          <Menu className="w-5 h-5" />
+          <Menu className="h-[18px] w-[18px]" aria-hidden="true" />
         </button>
-
         <div className="min-w-0">
-          <h1 className="text-lg sm:text-xl font-bold tracking-tight text-stone-900 truncate">
-            {title}
-          </h1>
-          <p className="hidden sm:block text-xs text-stone-500 font-medium truncate mt-0.5">
-            {subtitle}
-          </p>
+          <h1 className="truncate text-base font-semibold tracking-tight text-stone-950 sm:text-lg">{title}</h1>
+          <p className="mt-0.5 hidden truncate text-xs text-stone-500 sm:block">{subtitle}</p>
         </div>
       </div>
 
-      {/* Middle/Right: Search bar, Quick Action & User Profile */}
-      <div className="flex items-center gap-2 sm:gap-3">
-        {/* Search Field */}
-        <div className="relative hidden md:block w-64 lg:w-72">
-          <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="Search decisions, tasks..."
-            className="w-full pl-9 pr-8 py-1.5 text-xs sm:text-sm bg-white border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-stone-800 placeholder:text-stone-400 shadow-2xs transition-all"
-            readOnly
-            onClick={() => {}}
-          />
-          <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-stone-400 bg-stone-100 border border-stone-200 px-1.5 py-0.5 rounded font-mono">
-            ⌘K
-          </kbd>
-        </div>
-
-        {/* Quick New Meeting Action (if not already on the page) */}
-        {pathname !== "/new-meeting" && (
-          <Link
-            href="/new-meeting"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-medium rounded-xl text-white bg-orange-600 hover:bg-orange-700 shadow-xs transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            <span className="hidden sm:inline">New Meeting</span>
-          </Link>
-        )}
-
-        {/* Notifications Placeholder */}
-        <button
-          type="button"
-          className="relative p-2 rounded-xl text-stone-600 hover:text-stone-900 hover:bg-white border border-transparent hover:border-stone-200 transition-all cursor-pointer"
-          title="2 alerts require confirmation"
+      {pathname !== "/new-meeting" && (
+        <Link
+          href="/new-meeting"
+          className="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-lg bg-orange-700 px-3.5 text-[13px] font-medium text-white transition-colors hover:bg-orange-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-700 focus-visible:ring-offset-2"
         >
-          <Bell className="w-4 h-4" />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-orange-600" />
-        </button>
-
-        {/* User Profile Placeholder */}
-        <div className="flex items-center gap-2.5 pl-2 border-l border-stone-200/80">
-          <div className="relative">
-            <div className="w-8 h-8 rounded-full bg-stone-800 text-white flex items-center justify-center font-semibold text-xs ring-2 ring-orange-500/30">
-              AM
-            </div>
-            <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white" />
-          </div>
-
-          <div className="hidden xl:flex flex-col text-left">
-            <span className="text-xs font-semibold text-stone-900 leading-tight">
-              Alex Morgan
-            </span>
-            <span className="text-[11px] text-stone-500 leading-tight">
-              Product Ops
-            </span>
-          </div>
-        </div>
-      </div>
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          <span>New meeting</span>
+        </Link>
+      )}
     </header>
   );
 }
-

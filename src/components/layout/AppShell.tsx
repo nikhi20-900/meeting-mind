@@ -9,8 +9,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   return (
-    <div className="min-h-screen flex bg-[#FAF8F5] text-stone-900">
-      {/* Sidebar Navigation */}
+    <div className="min-h-screen bg-stone-50 text-stone-900">
       <Sidebar
         isCollapsed={isCollapsed}
         setIsCollapsed={setIsCollapsed}
@@ -18,22 +17,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         setIsMobileOpen={setIsMobileOpen}
       />
 
-      {/* Main Content Area */}
       <div
-        className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ease-in-out ${
+        className={`flex min-h-screen min-w-0 flex-col transition-[padding] duration-200 ease-out ${
           isCollapsed ? "lg:pl-20" : "lg:pl-64"
         }`}
       >
-        <TopHeader
-          onToggleMobileMenu={() => setIsMobileOpen(true)}
-          isSidebarCollapsed={isCollapsed}
-        />
-
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
+        <TopHeader onToggleMobileMenu={() => setIsMobileOpen(true)} />
+        <main className="mx-auto w-full max-w-7xl flex-1 p-4 sm:p-6 lg:p-8">
           {children}
         </main>
       </div>
     </div>
   );
 }
-

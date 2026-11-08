@@ -72,39 +72,21 @@ export default function DashboardPage() {
   return (
     <AppShell>
       <div className="space-y-6 sm:space-y-8">
-        {/* Intro / Hackathon Mission Banner (Restrained & Professional) */}
-        <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-r from-stone-900 via-stone-800 to-stone-900 text-white shadow-xs">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="space-y-1.5 max-w-2xl">
-              <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-500/20 text-orange-300 border border-orange-500/30">
-                <Sparkles className="w-3.5 h-3.5 text-orange-400" />
-                Persistent Decision & Conflict Intelligence
-              </div>
-              <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
-                Turn discussions into auditable commitments without manual busywork.
-              </h2>
-              <p className="text-xs sm:text-sm text-stone-300 leading-relaxed">
-                Meeting Mind captures meeting recaps with Wispr Flow, cross-references historical decisions, prevents contradictions, and asks for confirmation before creating actionable tasks.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3 shrink-0">
-              <Link
-                href="/new-meeting"
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-orange-600 hover:bg-orange-500 text-white shadow-xs transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                Process New Meeting
-              </Link>
-              <Link
-                href="/decision-memory"
-                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-medium bg-stone-800 hover:bg-stone-700 text-stone-200 border border-stone-700 transition-colors"
-              >
-                <History className="w-4 h-4" />
-                Browse Memory
-              </Link>
-            </div>
+        <div className="flex flex-col gap-4 border-b border-stone-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
+          <div className="max-w-2xl space-y-1">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-orange-800">Workspace</p>
+            <h2 className="text-2xl font-semibold tracking-tight text-stone-950">Meeting activity</h2>
+            <p className="text-sm leading-relaxed text-stone-600">
+              A clear view of recent meetings, decisions, and work that needs review.
+            </p>
           </div>
+          <Link
+            href="/new-meeting"
+            className="inline-flex min-h-10 items-center gap-2 self-start rounded-lg bg-orange-700 px-4 text-sm font-medium text-white transition-colors hover:bg-orange-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-700 focus-visible:ring-offset-2 sm:self-auto"
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            New meeting
+          </Link>
         </div>
 
         {/* Loading State */}
@@ -166,7 +148,7 @@ export default function DashboardPage() {
               <StatCard
                 label="Upcoming Deadlines"
                 value={data.stats.upcomingDeadlines}
-                subtext="Next milestone: Nov 03"
+                subtext="Across active work"
                 badge={`${data.stats.deadlinesWithin48Hours} within 48h`}
                 badgeVariant="orange"
                 icon={Clock}
@@ -253,7 +235,7 @@ export default function DashboardPage() {
                     </div>
                     <div>
                       <h4 className="text-sm font-semibold text-stone-900">
-                        Agent Conflict Detection Guard
+                        Conflict checks
                       </h4>
                       <p className="text-[11px] text-stone-500">
                         Cross-meeting memory verification
@@ -262,7 +244,7 @@ export default function DashboardPage() {
                   </div>
 
                   <p className="text-xs text-stone-600 leading-relaxed">
-                    When new meetings propose rate limits or architecture shifts, Meeting Mind analyzes your historical memory. Contradictory statements flag conflicts and require human confirmation.
+                    Review decisions that may conflict with an existing team policy.
                   </p>
 
                   <div className="pt-2 border-t border-stone-200/70 flex items-center justify-between text-xs">
