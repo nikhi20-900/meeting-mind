@@ -1,25 +1,76 @@
 @import "tailwindcss";
 
+@theme {
+  /* MeetingMind palette: linen, ink, and juniper. */
+  --color-orange-50: #eef1eb;
+  --color-orange-100: #e2e8df;
+  --color-orange-200: #ccd7c8;
+  --color-orange-300: #acbea8;
+  --color-orange-400: #8ea38b;
+  --color-orange-500: #728a70;
+  --color-orange-600: #5d765e;
+  --color-orange-700: #4b614d;
+  --color-orange-800: #3b4d3d;
+  --color-orange-900: #2c3b2e;
+  --color-orange-950: #1e2a20;
+
+  --color-stone-50: #f8f6f0;
+  --color-stone-100: #f0eee7;
+  --color-stone-200: #e1ded4;
+  --color-stone-300: #d0ccc0;
+  --color-stone-400: #aaa698;
+  --color-stone-500: #7d796e;
+  --color-stone-600: #625f56;
+  --color-stone-700: #4b4942;
+  --color-stone-800: #353630;
+  --color-stone-900: #272923;
+  --color-stone-950: #191a16;
+}
+
 :root {
-  --background: #FBF9F5;
-  --foreground: #1C1917;
-  --card-bg: #FFFFFF;
-  --border-subtle: #E7E5E4;
-  --accent-orange: #EA580C;
+  color-scheme: light;
+  --app-background: #f8f6f0;
+  --app-surface: #fdfcf8;
+  --app-ink: #272923;
+  --app-muted: #625f56;
+  --app-line: #e1ded4;
+  --app-accent: #5d765e;
+}
+
+html {
+  min-height: 100%;
+  background: var(--app-background);
+  scroll-behavior: smooth;
 }
 
 body {
-  background-color: var(--background);
-  color: var(--foreground);
+  min-height: 100vh;
+  margin: 0;
+  background: var(--app-background);
+  color: var(--app-ink);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Custom scrollbar for clean dashboard aesthetic */
+::selection {
+  background: #ccd7c8;
+  color: #191a16;
+}
+
+:focus-visible {
+  outline: 2px solid var(--app-accent);
+  outline-offset: 2px;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
@@ -27,10 +78,25 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #D6D3D1;
+  background: #d0ccc0;
+  border: 2px solid var(--app-background);
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #A8A29E;
+  background: #aaa698;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
