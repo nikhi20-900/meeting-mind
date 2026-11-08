@@ -222,7 +222,7 @@ export default function WeeklyDigestPage() {
                         }
                         className="text-[10px]"
                       >
-                        {t.priority}
+                        {t.priority === "Unknown" ? "Priority unknown" : t.priority}
                       </Badge>
                     </div>
 

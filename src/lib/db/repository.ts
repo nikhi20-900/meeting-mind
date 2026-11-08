@@ -211,11 +211,12 @@ export async function saveExtractedMeetingData(params: {
 
     return {
       id: decisionId,
-      date: meetingDate || new Date().toISOString().split("T")[0],
+      date: meetingDate || "Unknown",
       meetingReference: title,
       meetingId: meetingId,
       category: dec.category,
-      status: matchingConflict ? "Conflict Flagged" : "Active",
+      status: matchingConflict ? "Conflict Flagged" : dec.status,
+      confidenceScore: dec.confidenceScore,
       decisionText: dec.decisionText,
       rationale: dec.rationale,
       hasConflictWarning: !!matchingConflict,
@@ -236,17 +237,17 @@ export async function saveExtractedMeetingData(params: {
       id: taskId,
       title: action.title,
       owner: {
-        name: action.ownerName || "Unassigned",
+        name: action.ownerName || "Unknown",
         avatar: (action.ownerName || "UN")
           .split(" ")
           .map((n) => n[0])
           .join("")
           .slice(0, 2)
           .toUpperCase(),
-        role: action.ownerRole || "Team Member",
+        role: action.ownerRole || "Unknown",
       },
-      dueDate: action.deadline || "Within 7 days",
-      priority: action.priority || "Medium",
+      dueDate: action.deadline || "Unknown",
+      priority: action.priority || "Unknown",
       status: "Awaiting Approval", // MUST be Awaiting Approval per requirement!
       associatedMeeting: title,
       associatedDecisionId: savedDecisions[0]?.id,
@@ -263,9 +264,9 @@ export async function saveExtractedMeetingData(params: {
   const newMeeting: MeetingSummary = {
     id: meetingId,
     title: title,
-    date: meetingDate || new Date().toISOString().split("T")[0],
+    date: meetingDate || "Unknown",
     duration: "30 min",
-    participants: participantList.length > 0 ? participantList : ["Team"],
+    participants: participantList,
     status: "Processed",
     decisionsCount: savedDecisions.length,
     tasksCount: savedTasks.length,

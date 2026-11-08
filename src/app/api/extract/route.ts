@@ -11,38 +11,41 @@ import {
 
 const SYSTEM_PROMPT = `You are Meeting Mind's intelligent meeting extraction engine.
 Your task is to analyze meeting recaps and transcripts, and extract:
-1. A structured summary (headline, executive summary, 3-5 key takeaways, sentiment/tone, and primary focus).
-2. Explicit and implicit consensus decisions (with decision text, rationale, category [one of: "Architecture", "Product", "Governance", "Client SLA", "Operations"], and speaker attribution).
-3. Action items (with task title, owner name, owner role, deadline/due date, priority ["High", "Medium", "Low"], and speaker attribution).
+1. A structured summary (headline, executive summary, key takeaways, sentiment/tone, and primary focus), using "Unknown" or an empty list when unsupported.
+2. Explicit consensus decisions (with decision text, rationale, category [one of: "Architecture", "Product", "Governance", "Client SLA", "Operations", "Unknown"], speaker attribution, and confidenceScore from 0 to 1).
+3. Explicit action items (with task title, owner name, owner role, deadline/due date, priority ["High", "Medium", "Low", "Unknown"], and speaker attribution).
 4. Identified speakers and their key contributions.
+
+Only report information supported by the recap. Do not infer or invent owners, roles, deadlines, priorities, rationales, speakers, or decisions. Use the exact string "Unknown" when a requested text field is not stated. Use an empty list when the recap does not support an item. Set decision confidenceScore below 0.75 when evidence is ambiguous; never use a default confidence.
 
 You MUST respond strictly with valid JSON conforming to the following structure:
 {
   "summary": {
-    "headline": "Short punchy headline",
-    "executiveSummary": "2-3 sentences summarizing core accomplishments and discussion",
-    "keyTakeaways": ["Takeaway 1", "Takeaway 2", "Takeaway 3"],
-    "sentimentOrTone": "e.g. Collaborative, decisive, urgent",
-    "primaryFocus": "e.g. Infrastructure scaling and SLA compliance"
+    "headline": "A concise headline supported by the recap, or Unknown",
+    "executiveSummary": "A concise summary supported by the recap, or Unknown",
+    "keyTakeaways": [],
+    "sentimentOrTone": "A tone supported by the recap, or Unknown",
+    "primaryFocus": "A focus supported by the recap, or Unknown"
   },
   "decisions": [
     {
       "id": "dec-1",
       "decisionText": "Clear statement of what was decided",
       "rationale": "Why this was decided and supporting evidence",
-      "category": "Architecture | Product | Governance | Client SLA | Operations",
-      "speakerAttribution": "Who proposed or agreed to this decision (e.g. 'Proposed by Marcus Vance, confirmed by team')"
+      "category": "Architecture | Product | Governance | Client SLA | Operations | Unknown",
+      "speakerAttribution": "Who proposed or agreed to this decision, or Unknown",
+      "confidenceScore": 0.0
     }
   ],
   "actionItems": [
     {
       "id": "tsk-1",
       "title": "Specific actionable task",
-      "ownerName": "Person assigned (extract from text or 'Unassigned')",
-      "ownerRole": "Role of owner if mentioned or inferred (e.g. 'Infrastructure Lead')",
-      "deadline": "Deadline mentioned in text (e.g. 'Nov 10, 2026' or 'Within 7 days')",
-      "priority": "High | Medium | Low",
-      "speakerAttribution": "Who agreed or assigned this task"
+      "ownerName": "Person explicitly assigned, or Unknown",
+      "ownerRole": "Role explicitly stated, or Unknown",
+      "deadline": "Deadline stated in the recap, or Unknown",
+      "priority": "High | Medium | Low | Unknown",
+      "speakerAttribution": "Who explicitly agreed or assigned this task, or Unknown"
     }
   ],
   "speakers": [
@@ -168,7 +171,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const meetingDate = date || new Date().toISOString().split("T")[0];
+    const meetingDate = typeof date === "string" && date.trim() ? date.trim() : "Unknown";
     const userPrompt = `Meeting Title: ${title}
 Meeting Date: ${meetingDate}
 Participants / Attendees: ${attendees || "Not explicitly specified"}

@@ -17,20 +17,24 @@ import {
 } from "lucide-react";
 
 export function DecisionList({ initialDecisions }: { initialDecisions: Decision[] }) {
+  const [decisions, setDecisions] = useState(initialDecisions);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const [expandedImpactId, setExpandedImpactId] = useState<string | null>(null);
+  const [updatingDecisionId, setUpdatingDecisionId] = useState<string | null>(null);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+  const [reviewErrorDecisionId, setReviewErrorDecisionId] = useState<string | null>(null);
 
   const categories = useMemo(() => {
-    const set = new Set(initialDecisions.map((d) => d.category));
+    const set = new Set(decisions.map((d) => d.category));
     return ["ALL", ...Array.from(set)];
-  }, [initialDecisions]);
+  }, [decisions]);
 
   const statusOptions = ["ALL", "Active", "Conflict Flagged", "Under Review", "Superseded"];
 
   const filteredDecisions = useMemo(() => {
-    return initialDecisions.filter((decision) => {
+    return decisions.filter((decision) => {
       const q = searchQuery.trim().toLowerCase();
       const matchesSearch =
         q === "" ||
@@ -48,7 +52,31 @@ export function DecisionList({ initialDecisions }: { initialDecisions: Decision[
 
       return matchesSearch && matchesStatus && matchesCategory;
     });
-  }, [initialDecisions, searchQuery, selectedStatus, selectedCategory]);
+  }, [decisions, searchQuery, selectedStatus, selectedCategory]);
+
+  const confirmDecision = async (decision: Decision) => {
+    setUpdatingDecisionId(decision.id);
+    setReviewError(null);
+    setReviewErrorDecisionId(decision.id);
+    try {
+      const response = await fetch("/api/decisions", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: decision.id, status: "Active" }),
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.message || "Could not confirm this decision.");
+      }
+      setDecisions((current) =>
+        current.map((item) => item.id === decision.id ? { ...item, status: "Active" } : item)
+      );
+    } catch (error) {
+      setReviewError(error instanceof Error ? error.message : "Could not confirm this decision.");
+    } finally {
+      setUpdatingDecisionId(null);
+    }
+  };
 
   const handleResetFilters = () => {
     setSearchQuery("");
@@ -101,8 +129,8 @@ export function DecisionList({ initialDecisions }: { initialDecisions: Decision[
               {statusOptions.map((status) => {
                 const count =
                   status === "ALL"
-                    ? initialDecisions.length
-                    : initialDecisions.filter((d) => d.status === status).length;
+                    ? decisions.length
+                    : decisions.filter((d) => d.status === status).length;
 
                 return (
                   <button
@@ -143,8 +171,8 @@ export function DecisionList({ initialDecisions }: { initialDecisions: Decision[
               {categories.map((category) => {
                 const count =
                   category === "ALL"
-                    ? initialDecisions.length
-                    : initialDecisions.filter((d) => d.category === category).length;
+                    ? decisions.length
+                    : decisions.filter((d) => d.category === category).length;
 
                 return (
                   <button
@@ -179,7 +207,7 @@ export function DecisionList({ initialDecisions }: { initialDecisions: Decision[
         <div className="flex items-center justify-between pt-2 border-t border-stone-100 text-xs text-stone-500">
           <div className="flex items-center gap-2">
             <span>
-              Showing <strong className="text-stone-900 font-semibold">{filteredDecisions.length}</strong> of {initialDecisions.length} decisions
+              Showing <strong className="text-stone-900 font-semibold">{filteredDecisions.length}</strong> of {decisions.length} decisions
             </span>
             {hasActiveFilters && (
               <span className="text-orange-700 font-medium">
@@ -279,6 +307,23 @@ export function DecisionList({ initialDecisions }: { initialDecisions: Decision[
                   #{decision.id.toUpperCase()}
                 </div>
               </div>
+
+              {decision.status === "Under Review" && decision.decisionText !== "Unknown" && (
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    disabled={updatingDecisionId === decision.id}
+                    onClick={() => confirmDecision(decision)}
+                    className="rounded-lg bg-stone-900 px-3 py-2 text-xs font-semibold text-white hover:bg-stone-700 disabled:opacity-60"
+                  >
+                    {updatingDecisionId === decision.id ? "Saving…" : "Confirm and activate"}
+                  </button>
+                  <span className="text-xs text-stone-500">Review the wording above before confirming.</span>
+                </div>
+              )}
+              {reviewError && reviewErrorDecisionId === decision.id && updatingDecisionId === null && (
+                <p role="alert" className="mt-2 text-xs text-rose-700">{reviewError}</p>
+              )}
 
               {/* Rationale explanation */}
               <div className="mt-3.5 p-3 rounded-xl bg-[#FAF9F6] border border-stone-100 text-xs text-stone-600 leading-relaxed">

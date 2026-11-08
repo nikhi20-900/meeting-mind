@@ -79,6 +79,7 @@ export default function TaskTrackerPage() {
     { id: "High", label: "High" },
     { id: "Medium", label: "Medium" },
     { id: "Low", label: "Low" },
+    { id: "Unknown", label: "Unknown" },
   ];
 
   // Actions for tasks with "Awaiting Approval" (Persisted via PATCH /api/tasks)
@@ -479,7 +480,7 @@ export default function TaskTrackerPage() {
                               : "neutral"
                           }
                         >
-                          {task.priority} Priority
+                          {task.priority === "Unknown" ? "Priority unknown" : `${task.priority} priority`}
                         </Badge>
 
                         {task.status === "Awaiting Approval" ? (

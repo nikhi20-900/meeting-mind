@@ -65,7 +65,7 @@ export function UpcomingTasks({ initialTasks }: { initialTasks: TaskItem[] }) {
                     }
                     className="text-[11px]"
                   >
-                    {task.priority} Priority
+                    {task.priority === "Unknown" ? "Priority unknown" : `${task.priority} Priority`}
                   </Badge>
 
                   {isAwaitingApproval ? (

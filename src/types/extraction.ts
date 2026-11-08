@@ -13,7 +13,7 @@ export interface ExtractedDecision {
   id: string;
   decisionText: string;
   rationale: string;
-  category: "Architecture" | "Product" | "Governance" | "Client SLA" | "Operations";
+  category: "Architecture" | "Product" | "Governance" | "Client SLA" | "Operations" | "Unknown";
   status: DecisionStatus;
   speakerAttribution: string;
   confidenceScore?: number;
