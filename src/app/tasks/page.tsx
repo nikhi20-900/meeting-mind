@@ -235,6 +235,8 @@ export default function TaskTrackerPage() {
         {/* Action feedback */}
         {toastMessage && (
           <div
+            role="status"
+            aria-live="polite"
             className={`p-3.5 px-4 rounded-xl border flex items-center justify-between gap-3 text-xs shadow-2xs animate-in fade-in duration-150 ${
               toastMessage.type === "confirm"
                 ? "bg-emerald-50 border-emerald-200 text-emerald-900"
@@ -252,6 +254,7 @@ export default function TaskTrackerPage() {
 
             {toastMessage.undoTaskId && (
               <button
+                type="button"
                 onClick={() => handleUndo(toastMessage.undoTaskId!)}
                 className="text-xs font-semibold text-stone-700 underline hover:text-stone-900 shrink-0 cursor-pointer"
               >
@@ -265,7 +268,7 @@ export default function TaskTrackerPage() {
         {loading && (
           <div className="p-12 bg-white rounded-2xl border border-stone-200/80 shadow-2xs flex flex-col items-center justify-center text-center space-y-3">
             <Loader2 className="w-7 h-7 text-orange-600 animate-spin" />
-            <h4 className="text-sm font-semibold text-stone-800">
+            <h4 role="status" aria-live="polite" className="text-sm font-semibold text-stone-800">
               Loading tasks…
             </h4>
             <p className="text-xs text-stone-500 max-w-xs">
@@ -302,7 +305,8 @@ export default function TaskTrackerPage() {
             <div className="relative">
               <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
-                type="text"
+                type="search"
+                aria-label="Search tasks"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search tasks, owners, meetings, or decisions"
@@ -327,7 +331,7 @@ export default function TaskTrackerPage() {
                   Status
                 </span>
 
-                <div className="flex flex-wrap items-center gap-1.5">
+                <div role="group" aria-label="Filter tasks by status" className="flex flex-wrap items-center gap-1.5">
                   {statusOptions.map((opt) => {
                     const count =
                       opt.id === "ALL"
@@ -336,7 +340,9 @@ export default function TaskTrackerPage() {
 
                     return (
                       <button
+                        type="button"
                         key={opt.id}
+                        aria-pressed={statusFilter === opt.id}
                         onClick={() => setStatusFilter(opt.id)}
                         className={`px-3 py-1 text-xs font-medium rounded-lg border transition-all cursor-pointer flex items-center gap-1.5 ${
                           statusFilter === opt.id
@@ -369,7 +375,7 @@ export default function TaskTrackerPage() {
                   Priority
                 </span>
 
-                <div className="flex flex-wrap items-center gap-1.5">
+                <div role="group" aria-label="Filter tasks by priority" className="flex flex-wrap items-center gap-1.5">
                   {priorityOptions.map((opt) => {
                     const count =
                       opt.id === "ALL"
@@ -378,7 +384,9 @@ export default function TaskTrackerPage() {
 
                     return (
                       <button
+                        type="button"
                         key={opt.id}
+                        aria-pressed={priorityFilter === opt.id}
                         onClick={() => setPriorityFilter(opt.id)}
                         className={`px-2.5 py-1 text-xs font-medium rounded-lg border transition-all cursor-pointer flex items-center gap-1.5 ${
                           priorityFilter === opt.id
@@ -416,6 +424,7 @@ export default function TaskTrackerPage() {
 
               {hasActiveFilters && (
                 <button
+                  type="button"
                   onClick={handleResetFilters}
                   className="inline-flex items-center gap-1 text-xs text-stone-600 hover:text-stone-900 px-2.5 py-1 rounded-lg bg-stone-100 hover:bg-stone-200/80 transition-colors cursor-pointer font-medium"
                 >
@@ -569,6 +578,8 @@ export default function TaskTrackerPage() {
 
                       <div className="flex items-center gap-2 self-end sm:self-auto">
                         <button
+                          type="button"
+                          aria-busy={isActionRunning}
                           onClick={() => handleRejectTask(task.id)}
                           disabled={isActionRunning}
                           type="button"
@@ -580,6 +591,8 @@ export default function TaskTrackerPage() {
                         </button>
 
                         <button
+                          type="button"
+                          aria-busy={isActionRunning}
                           onClick={() => handleConfirmTask(task.id)}
                           disabled={isActionRunning}
                           type="button"

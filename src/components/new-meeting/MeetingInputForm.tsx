@@ -195,7 +195,8 @@ export function MeetingInputForm() {
             <button
               type="button"
               onClick={handleClear}
-              className="p-1.5 text-stone-400 hover:text-stone-700 transition-colors"
+              className="p-2 text-stone-500 hover:text-stone-900 transition-colors"
+              aria-label="Clear all fields"
               title="Clear all fields"
             >
               <RotateCcw className="w-3.5 h-3.5" />
@@ -215,6 +216,9 @@ export function MeetingInputForm() {
             <input
               id="meeting-title"
               type="text"
+              required
+              aria-invalid={Boolean(errors.title)}
+              aria-describedby={errors.title ? "meeting-title-error" : undefined}
               value={title}
               onChange={(e) => {
                 setTitle(e.target.value);
@@ -226,8 +230,8 @@ export function MeetingInputForm() {
               }`}
             />
             {errors.title && (
-              <p className="text-xs text-rose-600 flex items-center gap-1 mt-1 font-medium">
-                <AlertCircle className="w-3.5 h-3.5" />
+              <p id="meeting-title-error" role="alert" className="text-xs text-rose-600 flex items-center gap-1 mt-1 font-medium">
+                <AlertCircle className="w-3.5 h-3.5" aria-hidden="true" />
                 {errors.title}
               </p>
             )}
@@ -273,23 +277,21 @@ export function MeetingInputForm() {
           <div className="space-y-0.5">
             <h4 className="text-xs sm:text-sm font-semibold text-stone-900 flex items-center gap-2">
               Add your meeting recap
-              <span className="text-[10px] bg-orange-600 text-white font-medium px-1.5 py-0.2 rounded-md">
-                your dictation tool
-              </span>
+
             </h4>
             <p className="text-xs text-stone-600 leading-relaxed">
-              Paste a transcript or write a short recap. You can dictate into the text box with a dictation tool if it is installed.
+              Paste a transcript or write a short recap. You can also dictate into this field using your device’s dictation feature.
             </p>
           </div>
         </div>
 
         {/* Large Text Area: Meeting Recap / Transcript */}
         <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
             <label htmlFor="meeting-recap" className="block text-xs sm:text-sm font-semibold text-stone-800">
               Meeting recap or transcript <span className="text-orange-600">*</span>
             </label>
-            <span className="text-xs text-stone-400 font-mono">
+            <span aria-label={`${recapText.length} characters, ${recapText.trim() ? recapText.trim().split(/\s+/).filter(Boolean).length : 0} words`} className="text-xs text-stone-500">
               {recapText.length} characters • {recapText.trim() ? recapText.trim().split(/\s+/).filter(Boolean).length : 0} words
             </span>
           </div>
@@ -298,21 +300,25 @@ export function MeetingInputForm() {
             <textarea
               id="meeting-recap"
               rows={11}
+              required
+              minLength={15}
+              aria-invalid={Boolean(errors.recapText)}
+              aria-describedby={errors.recapText ? "meeting-recap-error" : undefined}
               value={recapText}
               onChange={(e) => {
                 setRecapText(e.target.value);
                 if (errors.recapText) setErrors((prev) => ({ ...prev, recapText: undefined }));
               }}
               placeholder={`Paste a transcript or write a short recap...\n\nHelpful details to include:\n- Decisions people agreed on\n- Tasks, owners, and due dates\n- Who said what, if it matters`}
-              className={`w-full p-4 text-sm font-mono leading-relaxed bg-[#FAF9F6] border rounded-2xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all ${
+              className={`w-full p-4 text-sm leading-relaxed bg-[#FAF9F6] border rounded-2xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all ${
                 errors.recapText ? "border-rose-400 bg-rose-50/20" : "border-stone-200"
               }`}
             />
           </div>
 
           {errors.recapText && (
-            <p className="text-xs text-rose-600 flex items-center gap-1 mt-1 font-medium">
-              <AlertCircle className="w-3.5 h-3.5" />
+            <p id="meeting-recap-error" role="alert" className="text-xs text-rose-600 flex items-center gap-1 mt-1 font-medium">
+              <AlertCircle className="w-3.5 h-3.5" aria-hidden="true" />
               {errors.recapText}
             </p>
           )}
@@ -372,24 +378,17 @@ export function MeetingInputForm() {
         />
       )}
 
-      {/* Invalid Key Error Banner */}
+      {/* Extraction key error */}
       {apiError && apiError.message.toLowerCase().includes("invalid") && (
-        <div className="p-5 bg-white rounded-2xl border border-rose-200 bg-rose-50/30 shadow-2xs space-y-2 text-xs animate-in fade-in">
-          <div className="flex items-center gap-2 font-bold text-rose-900">
-            <AlertTriangle className="w-4 h-4 text-rose-600" />
-            Could not connect to the extraction service
-          </div>
-          <p className="text-rose-800 leading-relaxed">
-            Check your connection settings, then try again.
-          <div className="pt-1 flex items-center gap-3">
-            
-          </div>
+        <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50/50 p-4 text-sm text-rose-900">
+          <p className="font-semibold">Could not use this extraction key</p>
+          <p className="mt-1">Check the key and try again.</p>
         </div>
       )}
 
-      {/* Rate Limit Exceeded Banner */}
+      {/* Rate limit error */}
       {apiError && apiError.message.toLowerCase().includes("rate limit") && (
-        <div className="p-5 bg-white rounded-2xl border border-amber-200 bg-amber-50/30 shadow-2xs space-y-2 text-xs animate-in fade-in">
+        <div role="alert" className="p-5 bg-white rounded-2xl border border-amber-200 bg-amber-50/30 shadow-2xs space-y-2 text-xs animate-in fade-in">
           <div className="flex items-center gap-2 font-bold text-amber-900">
             <AlertTriangle className="w-4 h-4 text-amber-600" />
             Service is busy
@@ -405,7 +404,7 @@ export function MeetingInputForm() {
         apiError.code !== "MISSING_API_KEY" &&
         !apiError.message.toLowerCase().includes("invalid") &&
         !apiError.message.toLowerCase().includes("rate limit") && (
-          <div className="p-5 bg-white rounded-2xl border border-rose-200 bg-rose-50/20 shadow-2xs space-y-2 text-xs">
+          <div role="alert" className="p-5 bg-white rounded-2xl border border-rose-200 bg-rose-50/20 shadow-2xs space-y-2 text-xs">
             <div className="flex items-center gap-2 font-bold text-rose-900">
               <AlertTriangle className="w-4 h-4 text-rose-600" />
               Could not process meeting
@@ -415,7 +414,7 @@ export function MeetingInputForm() {
           </div>
         )}
 
-      {/* Real Model Extraction Result View with Persistence Confirmation & Conflict Warnings */}
+      {/* Meeting review */}
       {extractionResponse && extractionResponse.success && (
         <ExtractionResultView
           result={extractionResponse.result}
