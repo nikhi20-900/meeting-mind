@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { TaskItem, TaskPriority, TaskStatus } from "@/types";
+import { TaskItem } from "@/types";
 import {
   CheckSquare,
   AlertCircle,
@@ -13,16 +13,11 @@ import {
   XCircle,
   Filter,
   Search,
-  Sparkles,
   RotateCcw,
   Clock,
   Layers,
-  ArrowRight,
-  ShieldCheck,
-  User,
   FileText,
   Gavel,
-  Database,
   Loader2,
   AlertTriangle,
 } from "lucide-react";
@@ -36,6 +31,7 @@ export default function TaskTrackerPage() {
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [priorityFilter, setPriorityFilter] = useState<string>("ALL");
   const [actionInProgressId, setActionInProgressId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const [toastMessage, setToastMessage] = useState<{
     text: string;
@@ -53,7 +49,7 @@ export default function TaskTrackerPage() {
       }
       const data = await res.json();
       if (!data.success) {
-        throw new Error(data.message || "Failed to load tasks.");
+        throw new Error(data.message || "Tasks could not be loaded.");
       }
       setTasks(data.tasks);
     } catch (err: any) {
@@ -86,8 +82,9 @@ export default function TaskTrackerPage() {
   ];
 
   // Actions for tasks with "Awaiting Approval" (Persisted via PATCH /api/tasks)
-  const handleConfirmTask = async (taskId: string, title: string) => {
+  const handleConfirmTask = async (taskId: string) => {
     setActionInProgressId(taskId);
+    setActionError(null);
     try {
       const res = await fetch("/api/tasks", {
         method: "PATCH",
@@ -108,19 +105,19 @@ export default function TaskTrackerPage() {
       );
 
       setToastMessage({
-        text: `Task "${title.slice(0, 32)}..." confirmed & saved to database.`,
+        text: "Task confirmed.",
         type: "confirm",
         undoTaskId: taskId,
       });
       setTimeout(() => setToastMessage((curr) => (curr?.undoTaskId === taskId ? null : curr)), 4500);
     } catch (err: any) {
-      alert(`Could not confirm task: ${err.message}`);
+      setActionError(err.message || "Could not confirm this task. Try again.");
     } finally {
       setActionInProgressId(null);
     }
   };
 
-  const handleRejectTask = async (taskId: string, title: string) => {
+  const handleRejectTask = async (taskId: string) => {
     setActionInProgressId(taskId);
     try {
       const res = await fetch("/api/tasks", {
@@ -142,25 +139,28 @@ export default function TaskTrackerPage() {
       );
 
       setToastMessage({
-        text: `Task "${title.slice(0, 32)}..." was rejected & saved to database.`,
+        text: "Task declined.",
         type: "reject",
         undoTaskId: taskId,
       });
       setTimeout(() => setToastMessage((curr) => (curr?.undoTaskId === taskId ? null : curr)), 4500);
     } catch (err: any) {
-      alert(`Could not reject task: ${err.message}`);
+      setActionError(err.message || "Could not decline this task. Try again.");
     } finally {
       setActionInProgressId(null);
     }
   };
 
   const handleUndo = async (taskId: string) => {
+    setActionError(null);
     try {
-      await fetch("/api/tasks", {
+      const res = await fetch("/api/tasks", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: taskId, status: "Awaiting Approval" }),
       });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.message || "Could not undo this change.");
 
       setTasks((prev) =>
         prev.map((t) =>
@@ -170,8 +170,8 @@ export default function TaskTrackerPage() {
         )
       );
       setToastMessage(null);
-    } catch (err) {
-      console.error("Undo error:", err);
+    } catch (err: any) {
+      setActionError(err.message || "Could not undo this change. Try again.");
     }
   };
 
@@ -218,36 +218,21 @@ export default function TaskTrackerPage() {
         {/* Header & Phase 3 Context */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-orange-600" />
-              <span className="text-xs font-semibold text-orange-900 tracking-wider uppercase">
-                Task Governance & Execution
-              </span>
-              <span className="text-[11px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-full">
-                Persistent Database
-              </span>
-            </div>
-            <h2 className="text-2xl font-bold tracking-tight text-stone-900">
-              Task Tracker
-            </h2>
-            <p className="text-sm text-stone-500 max-w-2xl">
-              Turn consensus into accountability. Review suggested action items, inspect linked decisions, and confirm or reject tasks before they are assigned.
-            </p>
+            <h2 className="text-2xl font-semibold tracking-tight text-stone-950">Tasks</h2>
+            <p className="text-sm text-stone-600 max-w-2xl">Review suggested tasks, confirm the ones your team agreed to, and track what is in progress.</p>
           </div>
-
-          {/* Human-in-the-Loop Governance Notice */}
-          <div className="self-start md:self-auto p-3 rounded-xl bg-orange-50/70 border border-orange-200 text-stone-800 text-xs space-y-0.5">
-            <div className="flex items-center gap-1.5 font-semibold text-orange-950">
-              <ShieldCheck className="w-4 h-4 text-orange-600" />
-              Human-in-the-Loop Required
-            </div>
-            <p className="text-[11px] text-stone-600">
-              Tasks remain in review until an operator confirms them. Confirmed/rejected states persist across restarts.
-            </p>
+          <div className="rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm text-stone-700">
+            <span className="font-semibold text-stone-950">{awaitingApprovalCount}</span> need your review
           </div>
         </div>
 
-        {/* Live Notification / Feedback Toast */}
+        {actionError && (
+          <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
+            {actionError}
+          </div>
+        )}
+
+        {/* Action feedback */}
         {toastMessage && (
           <div
             className={`p-3.5 px-4 rounded-xl border flex items-center justify-between gap-3 text-xs shadow-2xs animate-in fade-in duration-150 ${
@@ -281,10 +266,10 @@ export default function TaskTrackerPage() {
           <div className="p-12 bg-white rounded-2xl border border-stone-200/80 shadow-2xs flex flex-col items-center justify-center text-center space-y-3">
             <Loader2 className="w-7 h-7 text-orange-600 animate-spin" />
             <h4 className="text-sm font-semibold text-stone-800">
-              Loading Tasks from Database...
+              Loading tasks…
             </h4>
             <p className="text-xs text-stone-500 max-w-xs">
-              Synchronizing with persistent storage.
+              Just a moment.
             </p>
           </div>
         )}
@@ -320,7 +305,7 @@ export default function TaskTrackerPage() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search by task title, owner name, associated meeting, or linked decision..."
+                placeholder="Search tasks, owners, meetings, or decisions"
                 className="w-full pl-10 pr-20 py-2.5 text-sm bg-stone-50/70 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-stone-900 placeholder:text-stone-400 transition-all"
               />
               {searchQuery && (
@@ -339,7 +324,7 @@ export default function TaskTrackerPage() {
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
                 <span className="text-xs font-semibold text-stone-600 flex items-center gap-1.5 shrink-0">
                   <Filter className="w-3.5 h-3.5 text-orange-600" />
-                  Filter by Status:
+                  Status
                 </span>
 
                 <div className="flex flex-wrap items-center gap-1.5">
@@ -381,7 +366,7 @@ export default function TaskTrackerPage() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-2 border-t border-stone-100/80">
                 <span className="text-xs font-semibold text-stone-600 flex items-center gap-1.5 shrink-0">
                   <Layers className="w-3.5 h-3.5 text-stone-500" />
-                  Filter by Priority:
+                  Priority
                 </span>
 
                 <div className="flex flex-wrap items-center gap-1.5">
@@ -424,7 +409,7 @@ export default function TaskTrackerPage() {
                 Showing <strong className="text-stone-900 font-semibold">{filteredTasks.length}</strong> of {tasks.length} tasks
                 {awaitingApprovalCount > 0 && (
                   <span className="ml-2 text-amber-700 font-medium">
-                    ({awaitingApprovalCount} awaiting approval)
+                    ({awaitingApprovalCount} need review)
                   </span>
                 )}
               </div>
@@ -446,11 +431,11 @@ export default function TaskTrackerPage() {
         {!loading && !error && filteredTasks.length === 0 ? (
           <EmptyState
             icon={CheckSquare}
-            title="No tasks match your filter criteria"
+            title="No matching tasks"
             description={
               hasActiveFilters
                 ? `No tasks found for query "${searchQuery}" with status "${statusFilter}" and priority "${priorityFilter}".`
-                : "No tasks found in the database. Use New Meeting to dictate transcripts and generate proposed tasks."
+                : "No tasks yet. Add a meeting recap to capture suggested tasks."
             }
             actionLabel={hasActiveFilters ? "Clear All Filters" : undefined}
             onAction={hasActiveFilters ? handleResetFilters : undefined}
@@ -579,12 +564,12 @@ export default function TaskTrackerPage() {
                   {isAwaiting ? (
                     <div className="mt-4 pt-3.5 border-t border-amber-200/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="text-xs text-amber-800 font-medium">
-                        Human approval required before calendar sync:
+                        Review this suggested task before confirming it:
                       </div>
 
                       <div className="flex items-center gap-2 self-end sm:self-auto">
                         <button
-                          onClick={() => handleRejectTask(task.id, task.title)}
+                          onClick={() => handleRejectTask(task.id)}
                           disabled={isActionRunning}
                           type="button"
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl text-stone-700 bg-white border border-stone-300 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 disabled:opacity-50 transition-colors cursor-pointer shadow-2xs"
@@ -595,7 +580,7 @@ export default function TaskTrackerPage() {
                         </button>
 
                         <button
-                          onClick={() => handleConfirmTask(task.id, task.title)}
+                          onClick={() => handleConfirmTask(task.id)}
                           disabled={isActionRunning}
                           type="button"
                           className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-xl text-white bg-orange-600 hover:bg-orange-700 active:bg-orange-800 disabled:opacity-50 transition-colors shadow-2xs cursor-pointer"
@@ -606,14 +591,14 @@ export default function TaskTrackerPage() {
                           ) : (
                             <CheckCircle2 className="w-3.5 h-3.5" />
                           )}
-                          Confirm Task
+                          Confirm task
                         </button>
                       </div>
                     </div>
                   ) : (
                     <div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between text-xs text-stone-500">
                       <span>Status: <strong className="text-stone-800 font-semibold">{task.status}</strong></span>
-                      <span className="text-[11px] text-stone-400 font-mono">Persisted in Meeting Mind DB</span>
+                      <span className="text-[11px] text-stone-400 font-mono"></span>
                     </div>
                   )}
                 </div>
