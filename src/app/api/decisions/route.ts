@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAllDecisions, updateDecisionStatus } from "@/lib/db/repository";
 import { DecisionStatus } from "@/types";
+import { authenticateApiRequest, enforceRateLimit, readJsonBody } from "@/lib/apiSecurity";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const denied = authenticateApiRequest(req);
+  if (denied) return denied;
+  const limited = await enforceRateLimit(req, "decisions-read", 120, 60_000);
+  if (limited) return limited;
   try {
     const decisions = await getAllDecisions();
     return NextResponse.json({ success: true, decisions });
@@ -16,8 +21,14 @@ export async function GET() {
 }
 
 export async function PATCH(req: NextRequest) {
+  const denied = authenticateApiRequest(req, { mutation: true });
+  if (denied) return denied;
+  const limited = await enforceRateLimit(req, "decisions-write", 60, 60_000);
+  if (limited) return limited;
   try {
-    const body = await req.json();
+    const parsed = await readJsonBody(req, 8 * 1024);
+    if (parsed.response) return parsed.response;
+    const body = parsed.body;
     const { id, status, resolutionNotes } = body;
 
     if (!id || typeof id !== "string") {

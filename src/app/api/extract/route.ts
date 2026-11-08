@@ -8,6 +8,7 @@ import {
   parseGeminiError,
   sanitizeErrorMessage,
 } from "@/lib/gemini";
+import { authenticateApiRequest, enforceRateLimit, readJsonBody } from "@/lib/apiSecurity";
 
 const SYSTEM_PROMPT = `You are Meeting Mind's intelligent meeting extraction engine.
 Your task is to analyze meeting recaps and transcripts, and extract:
@@ -58,8 +59,17 @@ You MUST respond strictly with valid JSON conforming to the following structure:
 }`;
 
 export async function POST(req: NextRequest) {
+  const denied = authenticateApiRequest(req, { mutation: true });
+  if (denied) return denied;
+  const minuteLimit = await enforceRateLimit(req, "extract-minute", 10, 60_000);
+  if (minuteLimit) return minuteLimit;
+  const dailyLimit = await enforceRateLimit(req, "extract-daily", 200, 24 * 60 * 60 * 1000);
+  if (dailyLimit) return dailyLimit;
+  const parsed = await readJsonBody(req, 256 * 1024);
+  if (parsed.response) return parsed.response;
+
   try {
-    const body = await req.json();
+    const body = parsed.body;
     const {
       title,
       date,

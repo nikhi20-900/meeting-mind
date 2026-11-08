@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { getDecisionImpact, DecisionImpact, ResolutionOption } from "@/lib/decisionImpact";
 import { Badge } from "@/components/ui/Badge";
+import { useWorkspaceRole } from "@/components/auth/WorkspaceAccessGate";
 import {
   ShieldAlert,
   Layers,
@@ -38,6 +39,7 @@ export function DecisionImpactPanel({
   associatedTaskId,
   onConfirmResolution,
 }: DecisionImpactPanelProps) {
+  const workspaceRole = useWorkspaceRole();
   const impact: DecisionImpact = getDecisionImpact(conflict);
   const [selectedOptionId, setSelectedOptionId] = useState<string>(
     impact.resolutionOptions.find((o) => o.recommended)?.id || impact.resolutionOptions[0]?.id
@@ -264,7 +266,7 @@ export function DecisionImpactPanel({
               <button
                 type="button"
                 onClick={handleApplyResolution}
-                disabled={isApplying}
+                disabled={isApplying || workspaceRole !== "editor"}
                 className="inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-orange-600 hover:bg-orange-700 text-white text-xs font-semibold shadow-2xs transition-colors shrink-0 disabled:opacity-50"
               >
                 {isApplying ? (

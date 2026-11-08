@@ -5,6 +5,7 @@ import { Decision, DecisionStatus } from "@/types";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { DecisionImpactPanel } from "@/components/conflicts/DecisionImpactPanel";
+import { useWorkspaceRole } from "@/components/auth/WorkspaceAccessGate";
 import {
   Search,
   Filter,
@@ -17,6 +18,7 @@ import {
 } from "lucide-react";
 
 export function DecisionList({ initialDecisions }: { initialDecisions: Decision[] }) {
+  const workspaceRole = useWorkspaceRole();
   const [decisions, setDecisions] = useState(initialDecisions);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
@@ -308,7 +310,7 @@ export function DecisionList({ initialDecisions }: { initialDecisions: Decision[
                 </div>
               </div>
 
-              {decision.status === "Under Review" && decision.decisionText !== "Unknown" && (
+              {workspaceRole === "editor" && decision.status === "Under Review" && decision.decisionText !== "Unknown" && (
                 <div className="mt-3 flex flex-wrap items-center gap-3">
                   <button
                     type="button"

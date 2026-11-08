@@ -5,6 +5,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { TaskItem } from "@/types";
+import { useWorkspaceRole } from "@/components/auth/WorkspaceAccessGate";
 import {
   CheckSquare,
   AlertCircle,
@@ -23,6 +24,7 @@ import {
 } from "lucide-react";
 
 export default function TaskTrackerPage() {
+  const workspaceRole = useWorkspaceRole();
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -571,7 +573,7 @@ export default function TaskTrackerPage() {
                   </div>
 
                   {/* Actions Area: Confirm & Reject for tasks with "Awaiting Approval" */}
-                  {isAwaiting ? (
+                  {isAwaiting && workspaceRole === "editor" ? (
                     <div className="mt-4 pt-3.5 border-t border-amber-200/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="text-xs text-amber-800 font-medium">
                         Review this suggested task before confirming it:
