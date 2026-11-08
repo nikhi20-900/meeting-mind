@@ -61,7 +61,7 @@ export default function DecisionMemoryPage() {
         {loading && (
           <div className="p-12 bg-white rounded-2xl border border-stone-200/80 shadow-2xs flex flex-col items-center justify-center text-center space-y-3">
             <Loader2 className="w-7 h-7 text-orange-600 animate-spin" />
-            <h4 className="text-sm font-semibold text-stone-800">
+            <h4 role="status" aria-live="polite" className="text-sm font-semibold text-stone-800">
               Loading decisions…
             </h4>
             <p className="text-xs text-stone-500 max-w-xs">
@@ -72,7 +72,7 @@ export default function DecisionMemoryPage() {
 
         {/* Error State */}
         {!loading && error && (
-          <div className="p-8 bg-rose-50/50 rounded-2xl border border-rose-200 text-center space-y-3">
+          <div role="alert" className="p-8 bg-rose-50/50 rounded-2xl border border-rose-200 text-center space-y-3">
             <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center mx-auto">
               <AlertTriangle className="w-5 h-5" />
             </div>

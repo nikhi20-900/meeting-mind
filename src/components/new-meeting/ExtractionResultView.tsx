@@ -56,7 +56,7 @@ export function ExtractionResultView({
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
       {!isPersisted && (
-        <div role="status" className="rounded-xl border border-stone-200 bg-white px-4 py-3">
+        <div role="status" aria-live="polite" className="rounded-xl border border-stone-200 bg-white px-4 py-3">
           <p className="text-sm font-semibold text-stone-900">Review these results before saving</p>
           <p className="mt-1 text-sm text-stone-600">
             Check the decisions and proposed tasks below. Nothing has been added to your workspace yet.
@@ -65,7 +65,7 @@ export function ExtractionResultView({
       )}
 
       {isPersisted && (
-        <div role="status" className="flex flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50/70 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div role="status" aria-live="polite" className="flex flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50/70 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-semibold text-emerald-950">Meeting saved</p>
             <p className="mt-1 text-xs text-emerald-900">
@@ -493,6 +493,7 @@ export function ExtractionResultView({
               type="button"
               onClick={onConfirmSave}
               disabled={isSaving}
+              aria-busy={isSaving}
               className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-orange-700 px-4 text-sm font-medium text-white transition-colors hover:bg-orange-800 disabled:cursor-wait disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-700 focus-visible:ring-offset-2"
             >
               {isSaving ? "Saving meeting…" : "Save meeting"}

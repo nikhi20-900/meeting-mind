@@ -20,7 +20,7 @@ export function ApiKeySetupNotice({
   const [savedLocally, setSavedLocally] = useState(false);
   const [copiedEnv, setCopiedEnv] = useState(false);
 
-  const envSnippet = `GEMINI_API_KEY="AQ.Ab...YourGeminiApiKeyHere"`;
+  const envSnippet = `GEMINI_API_KEY="paste-your-key-here"`;
 
   const handleCopyEnv = () => {
     navigator.clipboard.writeText(envSnippet);
@@ -103,7 +103,9 @@ export function ApiKeySetupNotice({
           </p>
 
           <form onSubmit={handleSaveSessionKey} className="space-y-2">
+            <label htmlFor="session-api-key" className="sr-only">API key for this session</label>
             <input
+              id="session-api-key"
               type="password"
               value={keyInput}
               onChange={(e) => setKeyInput(e.target.value)}

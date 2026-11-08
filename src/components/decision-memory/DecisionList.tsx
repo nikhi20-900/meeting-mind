@@ -69,7 +69,8 @@ export function DecisionList({ initialDecisions }: { initialDecisions: Decision[
         <div className="relative">
           <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
-            type="text"
+            type="search"
+            aria-label="Search decision memory"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search decisions, notes, or meeting names"
@@ -77,6 +78,8 @@ export function DecisionList({ initialDecisions }: { initialDecisions: Decision[
           />
           {searchQuery && (
             <button
+              type="button"
+              aria-label="Clear decision search"
               onClick={() => setSearchQuery("")}
               className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-medium text-stone-400 hover:text-stone-700 bg-stone-200/60 hover:bg-stone-200 px-2 py-0.5 rounded-md transition-colors cursor-pointer"
             >
@@ -94,7 +97,7 @@ export function DecisionList({ initialDecisions }: { initialDecisions: Decision[
               Status
             </span>
 
-            <div className="flex flex-wrap items-center gap-1.5">
+            <div role="group" aria-label="Filter decisions by status" className="flex flex-wrap items-center gap-1.5">
               {statusOptions.map((status) => {
                 const count =
                   status === "ALL"
@@ -103,7 +106,9 @@ export function DecisionList({ initialDecisions }: { initialDecisions: Decision[
 
                 return (
                   <button
+                    type="button"
                     key={status}
+                    aria-pressed={selectedStatus === status}
                     onClick={() => setSelectedStatus(status)}
                     className={`px-3 py-1 text-xs font-medium rounded-lg border transition-all cursor-pointer flex items-center gap-1.5 ${
                       selectedStatus === status
@@ -134,7 +139,7 @@ export function DecisionList({ initialDecisions }: { initialDecisions: Decision[
               Category
             </span>
 
-            <div className="flex flex-wrap items-center gap-1.5">
+            <div role="group" aria-label="Filter decisions by category" className="flex flex-wrap items-center gap-1.5">
               {categories.map((category) => {
                 const count =
                   category === "ALL"
@@ -143,7 +148,9 @@ export function DecisionList({ initialDecisions }: { initialDecisions: Decision[
 
                 return (
                   <button
+                    type="button"
                     key={category}
+                    aria-pressed={selectedCategory === category}
                     onClick={() => setSelectedCategory(category)}
                     className={`px-2.5 py-1 text-xs font-medium rounded-lg border transition-all cursor-pointer flex items-center gap-1.5 ${
                       selectedCategory === category
@@ -183,6 +190,7 @@ export function DecisionList({ initialDecisions }: { initialDecisions: Decision[
 
           {hasActiveFilters && (
             <button
+              type="button"
               onClick={handleResetFilters}
               className="inline-flex items-center gap-1 text-xs text-stone-600 hover:text-stone-900 px-2.5 py-1 rounded-lg bg-stone-100 hover:bg-stone-200/80 transition-colors cursor-pointer font-medium"
             >
@@ -319,6 +327,7 @@ export function DecisionList({ initialDecisions }: { initialDecisions: Decision[
                     <div className="pt-2">
                       <button
                         type="button"
+                        aria-expanded={expandedImpactId === decision.id}
                         onClick={() =>
                           setExpandedImpactId(
                             expandedImpactId === decision.id ? null : decision.id
