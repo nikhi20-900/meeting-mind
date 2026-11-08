@@ -342,11 +342,19 @@ export function ExtractionResultView({
                             </Badge>
                           </>
                         )}
+                        {dec.status === "Under Review" && (
+                          <Badge variant="warning" className="text-[10px]">Needs review</Badge>
+                        )}
                       </div>
                       <span className="font-mono text-[10px] text-stone-400">
                         #{dec.id}
                       </span>
                     </div>
+                    {dec.status === "Under Review" && !isPersisted && (
+                      <p className="text-[11px] text-amber-900">
+                        Confidence {dec.confidenceScore === undefined ? "unknown" : `${Math.round(dec.confidenceScore * 100)}%`} — will remain under review if saved.
+                      </p>
+                    )}
 
                     {editingDecision?.id === dec.id ? (
                       <div className="space-y-3 rounded-lg border border-stone-200 bg-white p-3">
@@ -375,7 +383,7 @@ export function ExtractionResultView({
                             onChange={(event) => setEditingDecision((current) => current ? { ...current, category: event.target.value as ExtractedDecision["category"] } : current)}
                             className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-normal text-stone-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-600"
                           >
-                            {(["Architecture", "Product", "Governance", "Client SLA", "Operations"] as const).map((category) => (
+                            {(["Architecture", "Product", "Governance", "Client SLA", "Operations", "Unknown"] as const).map((category) => (
                               <option key={category} value={category}>{category}</option>
                             ))}
                           </select>
@@ -487,7 +495,7 @@ export function ExtractionResultView({
                       }
                       className="text-[10px]"
                     >
-                      {action.priority} Priority
+                      {action.priority === "Unknown" ? "Priority unknown" : `${action.priority} priority`}
                     </Badge>
 
                     <span className="text-[11px] text-amber-800 font-medium flex items-center gap-1">

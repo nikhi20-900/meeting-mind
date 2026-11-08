@@ -7,15 +7,16 @@ export type TaskStatus =
   | "Completed"
   | "Rejected";
 
-export type TaskPriority = "High" | "Medium" | "Low";
+export type TaskPriority = "High" | "Medium" | "Low" | "Unknown";
 
 export interface Decision {
   id: string;
   date: string;
   meetingReference: string;
   meetingId: string;
-  category: "Architecture" | "Product" | "Governance" | "Client SLA" | "Operations";
+  category: "Architecture" | "Product" | "Governance" | "Client SLA" | "Operations" | "Unknown";
   status: DecisionStatus;
+  confidenceScore?: number;
   decisionText: string;
   rationale: string;
   hasConflictWarning?: boolean;

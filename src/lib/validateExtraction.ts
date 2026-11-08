@@ -15,6 +15,11 @@ const VALID_CATEGORIES = [
 ] as const;
 
 const VALID_PRIORITIES = ["High", "Medium", "Low"] as const;
+const DECISION_REVIEW_CONFIDENCE = 0.75;
+
+function knownText(value: unknown): string {
+  return typeof value === "string" && value.trim() ? value.trim() : "Unknown";
+}
 
 export function validateExtractionResult(
   raw: any,
@@ -35,8 +40,8 @@ export function validateExtractionResult(
     typeof rawSummary.executiveSummary === "string" && rawSummary.executiveSummary.trim()
       ? rawSummary.executiveSummary.trim()
       : typeof raw.executiveSummary === "string"
-      ? raw.executiveSummary
-      : "Summary of discussion points captured during meeting.";
+      ? raw.executiveSummary.trim() || "Unknown"
+      : "Unknown";
 
   const keyTakeaways: string[] = Array.isArray(rawSummary.keyTakeaways)
     ? rawSummary.keyTakeaways.filter((item: any) => typeof item === "string" && item.trim())
@@ -45,45 +50,51 @@ export function validateExtractionResult(
     : [];
 
   const sentimentOrTone =
-    typeof rawSummary.sentimentOrTone === "string"
-      ? rawSummary.sentimentOrTone
-      : "Constructive & aligned";
+    typeof rawSummary.sentimentOrTone === "string" && rawSummary.sentimentOrTone.trim()
+      ? rawSummary.sentimentOrTone.trim()
+      : "Unknown";
 
   const primaryFocus =
-    typeof rawSummary.primaryFocus === "string"
-      ? rawSummary.primaryFocus
-      : "Technical alignment & commitments";
+    typeof rawSummary.primaryFocus === "string" && rawSummary.primaryFocus.trim()
+      ? rawSummary.primaryFocus.trim()
+      : "Unknown";
 
   // 2. Validate decisions
   const rawDecisions = Array.isArray(raw.decisions) ? raw.decisions : [];
-  const decisions: ExtractedDecision[] = rawDecisions.map((item: any, idx: number) => {
+  const decisions: ExtractedDecision[] = rawDecisions.map((rawItem: any, idx: number) => {
+    const item = rawItem && typeof rawItem === "object" ? rawItem : {};
     const rawCategory = typeof item.category === "string" ? item.category : "";
     const matchedCategory = VALID_CATEGORIES.find(
       (c) => c.toLowerCase() === rawCategory.toLowerCase()
     );
-    const category = matchedCategory || "Operations";
+    const category = matchedCategory || "Unknown";
+    const decisionText =
+      knownText(item.decisionText) !== "Unknown"
+        ? knownText(item.decisionText)
+        : knownText(item.text);
+    const confidenceScore =
+      typeof item.confidenceScore === "number" && Number.isFinite(item.confidenceScore)
+        ? Math.max(0, Math.min(1, item.confidenceScore))
+        : undefined;
 
     return {
       id: typeof item.id === "string" && item.id.trim() ? item.id : `dec-ext-${idx + 1}`,
-      decisionText:
-        typeof item.decisionText === "string" && item.decisionText.trim()
-          ? item.decisionText.trim()
-          : typeof item.text === "string"
-          ? item.text
-          : "Decision agreed upon during sync.",
-      rationale:
-        typeof item.rationale === "string" && item.rationale.trim()
-          ? item.rationale.trim()
-          : "Agreed by consensus to ensure project progression.",
+      decisionText,
+      rationale: knownText(item.rationale),
       category,
-      status: "Active" as DecisionStatus,
+      status:
+        decisionText === "Unknown" ||
+        confidenceScore === undefined ||
+        confidenceScore < DECISION_REVIEW_CONFIDENCE
+          ? ("Under Review" as DecisionStatus)
+          : ("Active" as DecisionStatus),
       speakerAttribution:
         typeof item.speakerAttribution === "string" && item.speakerAttribution.trim()
           ? item.speakerAttribution.trim()
-          : typeof item.proposedBy === "string"
-          ? `Proposed by ${item.proposedBy}`
-          : "Attributed to meeting participants",
-      confidenceScore: typeof item.confidenceScore === "number" ? item.confidenceScore : 0.95,
+          : typeof item.proposedBy === "string" && item.proposedBy.trim()
+          ? `Proposed by ${item.proposedBy.trim()}`
+          : "Unknown",
+      confidenceScore,
     };
   });
 
@@ -94,42 +105,31 @@ export function validateExtractionResult(
     ? raw.tasks
     : [];
 
-  const actionItems: ExtractedActionItem[] = rawActionItems.map((item: any, idx: number) => {
+  const actionItems: ExtractedActionItem[] = rawActionItems.map((rawItem: any, idx: number) => {
+    const item = rawItem && typeof rawItem === "object" ? rawItem : {};
     const rawPriority = typeof item.priority === "string" ? item.priority : "";
     const matchedPriority = VALID_PRIORITIES.find(
       (p) => p.toLowerCase() === rawPriority.toLowerCase()
     );
-    const priority: TaskPriority = matchedPriority || "Medium";
+    const priority: TaskPriority = matchedPriority || "Unknown";
 
     const ownerName =
-      typeof item.ownerName === "string" && item.ownerName.trim()
-        ? item.ownerName.trim()
-        : typeof item.owner === "string"
-        ? item.owner
-        : typeof item.assignee === "string"
-        ? item.assignee
-        : "Unassigned";
+      knownText(item.ownerName) !== "Unknown"
+        ? knownText(item.ownerName)
+        : knownText(item.owner) !== "Unknown"
+        ? knownText(item.owner)
+        : knownText(item.assignee);
 
-    const ownerRole =
-      typeof item.ownerRole === "string" && item.ownerRole.trim()
-        ? item.ownerRole.trim()
-        : "Team Member";
+    const ownerRole = knownText(item.ownerRole);
 
     const deadline =
-      typeof item.deadline === "string" && item.deadline.trim()
-        ? item.deadline.trim()
-        : typeof item.dueDate === "string"
-        ? item.dueDate
-        : "Within 7 days";
+      knownText(item.deadline) !== "Unknown"
+        ? knownText(item.deadline)
+        : knownText(item.dueDate);
 
     return {
       id: typeof item.id === "string" && item.id.trim() ? item.id : `tsk-ext-${idx + 1}`,
-      title:
-        typeof item.title === "string" && item.title.trim()
-          ? item.title.trim()
-          : typeof item.description === "string"
-          ? item.description
-          : `Action item #${idx + 1}`,
+      title: knownText(item.title) !== "Unknown" ? knownText(item.title) : knownText(item.description),
       ownerName,
       ownerRole,
       deadline,
@@ -137,7 +137,7 @@ export function validateExtractionResult(
       speakerAttribution:
         typeof item.speakerAttribution === "string" && item.speakerAttribution.trim()
           ? item.speakerAttribution.trim()
-          : `Assigned during recap discussion`,
+          : "Unknown",
       requiresConfirmation: true, // Meeting Mind principle: always requires confirmation
     };
   });
@@ -152,18 +152,16 @@ export function validateExtractionResult(
   const speakers: ExtractedSpeaker[] = rawSpeakers.map((item: any) => {
     if (typeof item === "string") {
       return {
-        name: item,
-        role: "Participant",
-        contributions: "Contributed to meeting discussion.",
+        name: knownText(item),
+        role: "Unknown",
+        contributions: "Unknown",
       };
     }
+    const speaker = item && typeof item === "object" ? item : {};
     return {
-      name: typeof item.name === "string" ? item.name : "Participant",
-      role: typeof item.role === "string" ? item.role : "Team Member",
-      contributions:
-        typeof item.contributions === "string"
-          ? item.contributions
-          : "Participated in meeting consensus.",
+      name: knownText(speaker.name),
+      role: knownText(speaker.role),
+      contributions: knownText(speaker.contributions),
     };
   });
 
