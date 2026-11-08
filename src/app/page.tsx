@@ -126,37 +126,35 @@ export default function DashboardPage() {
         {/* Loaded Dashboard Content */}
         {!loading && !error && data && (
           <>
-            {/* 4 Summary Stat Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+            {/* Workspace summary */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <StatCard
-                label="Meetings Processed"
+                label="Meetings"
                 value={data.stats.meetingsProcessed}
                 trend={data.stats.meetingsThisWeekDelta}
-                subtext="Persisted in local database"
-                badge="Healthy"
-                badgeVariant="neutral"
+                subtext="Processed in this workspace"
                 icon={FileText}
               />
               <StatCard
-                label="Pending Tasks"
+                label="Open tasks"
                 value={data.stats.pendingTasks}
-                subtext="Awaiting or confirmed"
-                badge={`${data.stats.pendingTasksConfirmationCount} need confirmation`}
+                subtext="Not completed or rejected"
+                badge={`${data.stats.pendingTasksConfirmationCount} awaiting approval`}
                 badgeVariant="warning"
                 icon={CheckSquare}
               />
               <StatCard
-                label="Upcoming Deadlines"
+                label="Due in 7 days"
                 value={data.stats.upcomingDeadlines}
-                subtext="Across active work"
-                badge={`${data.stats.deadlinesWithin48Hours} within 48h`}
-                badgeVariant="orange"
+                subtext="Active tasks with a due date"
+                badge={`${data.stats.deadlinesWithin48Hours} due today or tomorrow`}
+                badgeVariant={data.stats.deadlinesWithin48Hours > 0 ? "orange" : "neutral"}
                 icon={Clock}
               />
               <StatCard
-                label="Unresolved Conflicts"
+                label="Conflicts to review"
                 value={data.stats.unresolvedConflicts}
-                subtext="Cross-meeting policy clashes"
+                subtext="Unresolved policy clashes"
                 badge={data.stats.conflictsAttentionNeeded}
                 badgeVariant={data.stats.unresolvedConflicts > 0 ? "alert" : "neutral"}
                 icon={ShieldAlert}

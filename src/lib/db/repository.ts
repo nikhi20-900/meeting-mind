@@ -4,6 +4,21 @@ import { MeetingExtractionResult } from "@/types/extraction";
 import { ConflictRecord } from "./types";
 import { detectConflicts, DetectedConflict } from "@/lib/conflictDetection";
 
+function dateStartUTC(value?: string): number | null {
+  if (!value) return null;
+  const iso = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (iso) return Date.UTC(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+
+  const parsed = Date.parse(value);
+  if (Number.isNaN(parsed)) return null;
+  const date = new Date(parsed);
+  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+}
+
+function isOpenTask(task: TaskItem): boolean {
+  return task.status !== "Completed" && task.status !== "Rejected";
+}
+
 export async function getDashboardOverview(): Promise<{
   stats: DashboardStats;
   recentMeetings: MeetingSummary[];
@@ -12,32 +27,70 @@ export async function getDashboardOverview(): Promise<{
   conflicts: ConflictRecord[];
 }> {
   const db = await readDatabase();
+  const today = new Date();
+  const todayStart = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+  const dayMs = 24 * 60 * 60 * 1000;
+  const last7DaysStart = todayStart - 6 * dayMs;
+  const prior7DaysStart = todayStart - 13 * dayMs;
 
-  const awaitingTasksCount = db.tasks.filter(
-    (t) => t.status === "Awaiting Approval" || t.requiresUserConfirmation
-  ).length;
+  const activeTasks = db.tasks.filter(isOpenTask);
+  const datedActiveTasks = activeTasks
+    .map((task) => ({ task, due: dateStartUTC(task.dueDate) }))
+    .filter((entry): entry is { task: TaskItem; due: number } => entry.due !== null);
 
-  const unresolvedConflictsCount = db.conflicts.filter((c) => !c.resolved).length;
+  const meetingsLast7Days = db.meetings.filter((meeting) => {
+    const date = dateStartUTC(meeting.date);
+    return date !== null && date >= last7DaysStart && date <= todayStart;
+  }).length;
+  const meetingsPrior7Days = db.meetings.filter((meeting) => {
+    const date = dateStartUTC(meeting.date);
+    return date !== null && date >= prior7DaysStart && date < last7DaysStart;
+  }).length;
+  const weeklyChange = meetingsLast7Days - meetingsPrior7Days;
+  const weeklyTrend =
+    weeklyChange === 0
+      ? "No change vs prior week"
+      : (weeklyChange > 0 ? "+" : "") + weeklyChange + " vs prior week";
+
+  const unresolvedConflictsCount = db.conflicts.filter((conflict) => !conflict.resolved).length;
 
   const stats: DashboardStats = {
     meetingsProcessed: db.meetings.length,
-    meetingsThisWeekDelta: `+${Math.min(db.meetings.length, 4)} this week`,
-    pendingTasks: db.tasks.filter((t) => t.status !== "Completed" && t.status !== "Rejected").length,
-    pendingTasksConfirmationCount: awaitingTasksCount,
-    upcomingDeadlines: db.tasks.filter((t) => t.status !== "Completed" && t.status !== "Rejected").length,
-    deadlinesWithin48Hours: 2,
+    meetingsThisWeekDelta: weeklyTrend,
+    pendingTasks: activeTasks.length,
+    pendingTasksConfirmationCount: activeTasks.filter(
+      (task) => task.status === "Awaiting Approval" || task.requiresUserConfirmation
+    ).length,
+    upcomingDeadlines: datedActiveTasks.filter(
+      ({ due }) => due >= todayStart && due < todayStart + 7 * dayMs
+    ).length,
+    deadlinesWithin48Hours: datedActiveTasks.filter(
+      ({ due }) => due >= todayStart && due < todayStart + 2 * dayMs
+    ).length,
     unresolvedConflicts: unresolvedConflictsCount,
     conflictsAttentionNeeded:
       unresolvedConflictsCount > 0
-        ? `${unresolvedConflictsCount} require review`
-        : "All policies aligned",
+        ? unresolvedConflictsCount + " need review"
+        : "None need review",
   };
+
+  const sortByRecentDate = <T extends { date: string }>(a: T, b: T) =>
+    (dateStartUTC(b.date) ?? 0) - (dateStartUTC(a.date) ?? 0);
+
+  const upcomingTasks = activeTasks
+    .slice()
+    .sort((a, b) => {
+      const aDue = dateStartUTC(a.dueDate) ?? Number.MAX_SAFE_INTEGER;
+      const bDue = dateStartUTC(b.dueDate) ?? Number.MAX_SAFE_INTEGER;
+      return aDue - bDue;
+    })
+    .slice(0, 6);
 
   return {
     stats,
-    recentMeetings: db.meetings.slice(0, 5),
-    upcomingTasks: db.tasks.slice(0, 6),
-    recentDecisions: db.decisions.slice(0, 6),
+    recentMeetings: db.meetings.slice().sort(sortByRecentDate).slice(0, 5),
+    upcomingTasks,
+    recentDecisions: db.decisions.slice().sort(sortByRecentDate).slice(0, 6),
     conflicts: db.conflicts,
   };
 }

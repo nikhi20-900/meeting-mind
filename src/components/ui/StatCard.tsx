@@ -39,7 +39,15 @@ export function StatCard({
       <div className="mt-3 flex items-baseline gap-2">
         <span className="text-2xl sm:text-3xl font-semibold tracking-tight text-stone-900">{value}</span>
         {trend && (
-          <span className="text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60">
+          <span
+            className={`text-xs font-medium px-2 py-0.5 rounded-md border ${
+              trend.startsWith("-")
+                ? "text-rose-700 bg-rose-50 border-rose-200/60"
+                : trend.startsWith("+")
+                ? "text-emerald-700 bg-emerald-50 border-emerald-200/60"
+                : "text-stone-600 bg-stone-100 border-stone-200"
+            }`}
+          >
             {trend}
           </span>
         )}
