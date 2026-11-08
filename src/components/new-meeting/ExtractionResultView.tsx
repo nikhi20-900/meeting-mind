@@ -8,7 +8,6 @@ import { DetectedConflict } from "@/lib/conflictDetection";
 import { DecisionImpactPanel } from "@/components/conflicts/DecisionImpactPanel";
 import { Badge } from "@/components/ui/Badge";
 import {
-  Sparkles,
   Gavel,
   CheckSquare,
   Users,
@@ -20,9 +19,8 @@ import {
   AlertTriangle,
   Copy,
   Layers,
-  Bot,
-  Database,
   Quote,
+  FileText,
   ShieldAlert,
 } from "lucide-react";
 
@@ -33,6 +31,8 @@ interface ExtractionResultViewProps {
   savedTasks?: TaskItem[];
   detectedConflicts?: DetectedConflict[];
   onReset?: () => void;
+  onConfirmSave?: () => void;
+  isSaving?: boolean;
 }
 
 export function ExtractionResultView({
@@ -42,6 +42,8 @@ export function ExtractionResultView({
   savedTasks = [],
   detectedConflicts = [],
   onReset,
+  onConfirmSave,
+  isSaving = false,
 }: ExtractionResultViewProps) {
   const [copied, setCopied] = useState(false);
 
@@ -53,31 +55,29 @@ export function ExtractionResultView({
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
-      {/* Persistent Storage Confirmation Banner */}
-      {isPersisted && (
-        <div className="p-4 rounded-2xl bg-emerald-50/80 border border-emerald-200/90 text-emerald-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-emerald-100 border border-emerald-300 text-emerald-800 flex items-center justify-center shrink-0">
-              <Database className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="font-bold text-xs sm:text-sm block">
-                Saved to Persistent Storage
-              </span>
-              <span className="text-[11px] text-emerald-800 block">
-                Meeting, decisions, and tasks written to lightweight database. Remains available after restarts & refreshes.
-              </span>
-            </div>
-          </div>
+      {!isPersisted && (
+        <div role="status" className="rounded-xl border border-stone-200 bg-white px-4 py-3">
+          <p className="text-sm font-semibold text-stone-900">Review these results before saving</p>
+          <p className="mt-1 text-sm text-stone-600">
+            Check the decisions and proposed tasks below. Nothing has been added to your workspace yet.
+          </p>
+        </div>
+      )}
 
-          <div className="flex items-center gap-2 shrink-0">
-            <Link
-              href="/tasks"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white shadow-2xs transition-colors"
-            >
-              Review Proposed Tasks <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
+      {isPersisted && (
+        <div role="status" className="flex flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50/70 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-emerald-950">Meeting saved</p>
+            <p className="mt-1 text-xs text-emerald-900">
+              The meeting and decisions are saved. Tasks are waiting for your approval.
+            </p>
           </div>
+          <Link
+            href="/tasks"
+            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-emerald-700 px-3 text-xs font-semibold text-white transition-colors hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+          >
+            Review tasks <ArrowRight className="h-4 w-4" />
+          </Link>
         </div>
       )}
 
@@ -86,9 +86,9 @@ export function ExtractionResultView({
         <div className="p-5 rounded-2xl bg-rose-50 border border-rose-300 text-rose-950 shadow-2xs space-y-3">
           <div className="flex items-center gap-2 text-rose-900 font-bold text-sm">
             <ShieldAlert className="w-5 h-5 text-rose-600 shrink-0" />
-            <span>Cross-Meeting Conflict Detected ({detectedConflicts.length})</span>
+            <span>Possible conflict with an earlier decision ({detectedConflicts.length})</span>
             <span className="text-[10px] bg-rose-200/80 text-rose-950 px-2 py-0.5 rounded-full font-semibold border border-rose-300">
-              Human Review Required
+              Review suggested
             </span>
           </div>
 
@@ -147,12 +147,14 @@ export function ExtractionResultView({
                 </div>
 
                 {/* Decision Impact Engine */}
-                <div className="pt-2 border-t border-rose-100">
-                  <DecisionImpactPanel
-                    conflict={conf}
-                    associatedTaskId={savedTasks[0]?.id}
-                  />
-                </div>
+                {isPersisted && (
+                  <div className="pt-2 border-t border-rose-100">
+                    <DecisionImpactPanel
+                      conflict={conf}
+                      associatedTaskId={savedTasks[0]?.id}
+                    />
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -164,16 +166,14 @@ export function ExtractionResultView({
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-100 pb-4">
           <div className="flex items-center gap-2.5">
             <div className="w-10 h-10 rounded-xl bg-orange-50 border border-orange-200/80 flex items-center justify-center text-orange-600 shrink-0">
-              <Bot className="w-5 h-5" />
+              <FileText className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-base sm:text-lg font-bold text-stone-900">
-                  Meeting Intelligence Extracted
+                  Meeting summary
                 </h3>
-                <span className="text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-full">
-                  Real LLM Pipeline
-                </span>
+                
               </div>
               <p className="text-xs text-stone-500 mt-0.5">
                 Model: <strong className="text-stone-700">{result.metadata.provider} ({result.metadata.model})</strong> • Captured at {new Date(result.metadata.extractedAt).toLocaleTimeString()}
@@ -221,8 +221,8 @@ export function ExtractionResultView({
           {result.summary.keyTakeaways && result.summary.keyTakeaways.length > 0 && (
             <div className="space-y-2 pt-2">
               <span className="text-xs font-semibold text-stone-700 flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-orange-600" />
-                Key Strategic Takeaways:
+                
+                Key takeaways:
               </span>
               <ul className="space-y-1.5 pl-1">
                 {result.summary.keyTakeaways.map((takeaway, i) => (
@@ -351,7 +351,7 @@ export function ExtractionResultView({
           )}
         </div>
 
-        {/* Extracted Action Items Section */}
+        {/* Proposed tasks Section */}
         <div className="bg-white rounded-2xl border border-stone-200/90 shadow-2xs p-5 sm:p-6 space-y-4">
           <div className="flex items-center justify-between border-b border-stone-100 pb-3">
             <div className="flex items-center gap-2">
@@ -363,7 +363,7 @@ export function ExtractionResultView({
                   Extracted Action Items
                 </h3>
                 <p className="text-[11px] text-stone-500">
-                  Stored as Awaiting Approval
+                  Saved tasks will wait for your approval
                 </p>
               </div>
             </div>
@@ -475,25 +475,44 @@ export function ExtractionResultView({
         </div>
       )}
 
-      {/* Navigation & Next Step Prompts */}
-      <div className="p-4 bg-[#FAF8F5] rounded-2xl border border-stone-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-        <span className="text-stone-600">
-          Decisions and tasks saved to persistent database. Review and confirm tasks to proceed with execution.
-        </span>
-        <div className="flex items-center gap-3 shrink-0">
-          <Link
-            href="/tasks"
-            className="inline-flex items-center gap-1 font-semibold text-orange-700 hover:text-orange-800"
-          >
-            Review & Confirm Tasks <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
-          <span className="text-stone-300">•</span>
-          <Link
-            href="/decision-memory"
-            className="inline-flex items-center gap-1 font-semibold text-stone-600 hover:text-stone-900"
-          >
-            Decision Memory <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
+      {/* Review decision */}
+      <div className="flex flex-col gap-3 rounded-xl border border-stone-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-stone-900">
+            {isPersisted ? "What would you like to review next?" : "Ready to add this meeting?"}
+          </p>
+          <p className="mt-1 text-xs text-stone-600">
+            {isPersisted
+              ? "You can review task approvals or return to your decision memory."
+              : "Saving adds the meeting and its decisions. Tasks stay in Awaiting Approval."}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {!isPersisted && onConfirmSave && (
+            <button
+              type="button"
+              onClick={onConfirmSave}
+              disabled={isSaving}
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-orange-700 px-4 text-sm font-medium text-white transition-colors hover:bg-orange-800 disabled:cursor-wait disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-700 focus-visible:ring-offset-2"
+            >
+              {isSaving ? "Saving meeting…" : "Save meeting"}
+            </button>
+          )}
+          {isPersisted && (
+            <>
+              <Link href="/tasks" className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-stone-200 px-3 text-xs font-medium text-stone-700 hover:bg-stone-50">
+                Review tasks <ArrowRight className="h-4 w-4" />
+              </Link>
+              <Link href="/decision-memory" className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-stone-200 px-3 text-xs font-medium text-stone-700 hover:bg-stone-50">
+                Decision memory <ArrowRight className="h-4 w-4" />
+              </Link>
+            </>
+          )}
+          {onReset && !isPersisted && (
+            <button type="button" onClick={onReset} className="min-h-10 rounded-lg px-3 text-sm font-medium text-stone-600 hover:bg-stone-100 hover:text-stone-900">
+              Discard
+            </button>
+          )}
         </div>
       </div>
     </div>

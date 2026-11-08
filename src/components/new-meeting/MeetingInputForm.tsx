@@ -4,17 +4,9 @@ import React, { useState } from "react";
 import Link from "next/link";
 import {
   Mic,
-  Calendar,
-  Sparkles,
-  ArrowRight,
   AlertCircle,
-  CheckCircle2,
   FileText,
   RotateCcw,
-  ShieldAlert,
-  Info,
-  KeyRound,
-  Bot,
   AlertTriangle,
 } from "lucide-react";
 import { sampleRecapTemplates } from "@/data/mockData";
@@ -22,15 +14,21 @@ import { ExtractApiResponse } from "@/types/extraction";
 import { ExtractionResultView } from "./ExtractionResultView";
 import { ApiKeySetupNotice } from "./ApiKeySetupNotice";
 
+function localDateValue() {
+  const now = new Date();
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+}
+
 export function MeetingInputForm() {
   const [title, setTitle] = useState("");
-  const [meetingDate, setMeetingDate] = useState("2026-10-31");
+  const [meetingDate, setMeetingDate] = useState(localDateValue);
   const [recapText, setRecapText] = useState("");
-  const [attendees, setAttendees] = useState("Marcus Vance, Sarah Chen, Alex Morgan");
+  const [attendees, setAttendees] = useState("");
   const [sessionApiKey, setSessionApiKey] = useState("");
 
   const [errors, setErrors] = useState<{ title?: string; recapText?: string }>({});
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [apiError, setApiError] = useState<{
     code: string;
     message: string;
@@ -125,6 +123,34 @@ export function MeetingInputForm() {
     }
   };
 
+  const handleConfirmSave = async () => {
+    if (!extractionResponse || !extractionResponse.success) return;
+    setIsSaving(true);
+    setApiError(null);
+    try {
+      const res = await fetch("/api/meetings/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: title.trim(),
+          date: meetingDate,
+          recapText: recapText.trim(),
+          attendees: attendees.trim(),
+          extraction: extractionResponse.result,
+        }),
+      });
+      const data: ExtractApiResponse = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.success === false ? data.message : "Could not save this meeting.");
+      }
+      setExtractionResponse(data);
+    } catch (err: any) {
+      setApiError({ code: "SAVE_FAILED", message: err.message || "Could not save this meeting. Your review is still here." });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleProcessMeeting = (e: React.FormEvent) => {
     e.preventDefault();
     executeExtraction(false);
@@ -132,12 +158,14 @@ export function MeetingInputForm() {
 
   return (
     <div className="space-y-6">
+      {!extractionResponse && (
+      <div className="space-y-6">
       {/* Template Quick Loader Bar */}
       <div className="p-4 bg-white rounded-2xl border border-stone-200/90 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-xs text-stone-600">
-          <Sparkles className="w-4 h-4 text-orange-600 shrink-0" />
-          <span className="font-semibold text-stone-900">Quick Test Templates:</span>
-          <span>Populate realistic transcript samples</span>
+          <FileText className="w-4 h-4 text-orange-600 shrink-0" />
+          <span className="font-semibold text-stone-900">Start from an example:</span>
+          <span>Use a sample to fill in the form</span>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -160,8 +188,8 @@ export function MeetingInputForm() {
             onClick={() => handleLoadTemplate(2)}
             className="px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-800 border border-orange-200 transition-colors cursor-pointer flex items-center gap-1"
           >
-            <Sparkles className="w-3 h-3 text-orange-600" />
-            Load: Security & SMS 2FA Demo
+            <FileText className="w-3 h-3 text-orange-600" />
+            Security policy example
           </button>
           {(title || recapText) && (
             <button
@@ -192,7 +220,7 @@ export function MeetingInputForm() {
                 setTitle(e.target.value);
                 if (errors.title) setErrors((prev) => ({ ...prev, title: undefined }));
               }}
-              placeholder="e.g. Q4 Cloud Spanner Migration & Rate Limiting Sync"
+              placeholder="e.g. Product planning, 14 May"
               className={`w-full px-3.5 py-2.5 text-sm bg-stone-50/60 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all ${
                 errors.title ? "border-rose-400 bg-rose-50/20" : "border-stone-200"
               }`}
@@ -232,25 +260,25 @@ export function MeetingInputForm() {
             type="text"
             value={attendees}
             onChange={(e) => setAttendees(e.target.value)}
-            placeholder="e.g. Marcus Vance, Sarah Chen, Elena Rostova"
+            placeholder="e.g. Sam Lee, Jordan Park"
             className="w-full px-3.5 py-2 text-sm bg-stone-50/60 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-stone-800"
           />
         </div>
 
-        {/* Wispr Flow Voice Dictation Helper Banner */}
+        {/* Optional dictation helper */}
         <div className="p-4 rounded-xl bg-[#FFFBF5] border border-orange-200/90 text-stone-800 flex items-start gap-3">
           <div className="w-8 h-8 rounded-lg bg-orange-100 border border-orange-200 flex items-center justify-center text-orange-700 shrink-0 mt-0.5">
             <Mic className="w-4 h-4" />
           </div>
           <div className="space-y-0.5">
             <h4 className="text-xs sm:text-sm font-semibold text-stone-900 flex items-center gap-2">
-              Dictate directly with Wispr Flow
+              Add your meeting recap
               <span className="text-[10px] bg-orange-600 text-white font-medium px-1.5 py-0.2 rounded-md">
-                Voice Ready
+                your dictation tool
               </span>
             </h4>
             <p className="text-xs text-stone-600 leading-relaxed">
-              You can dictate directly into the text box below using <strong>Wispr Flow</strong>. Speak your thoughts naturally, summarize the meeting live, or paste a raw transcript from Zoom, Google Meet, or Slack Huddles.
+              Paste a transcript or write a short recap. You can dictate into the text box with a dictation tool if it is installed.
             </p>
           </div>
         </div>
@@ -259,7 +287,7 @@ export function MeetingInputForm() {
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <label htmlFor="meeting-recap" className="block text-xs sm:text-sm font-semibold text-stone-800">
-              Dictate or Paste Your Meeting Recap <span className="text-orange-600">*</span>
+              Meeting recap or transcript <span className="text-orange-600">*</span>
             </label>
             <span className="text-xs text-stone-400 font-mono">
               {recapText.length} characters • {recapText.trim() ? recapText.trim().split(/\s+/).filter(Boolean).length : 0} words
@@ -275,7 +303,7 @@ export function MeetingInputForm() {
                 setRecapText(e.target.value);
                 if (errors.recapText) setErrors((prev) => ({ ...prev, recapText: undefined }));
               }}
-              placeholder={`Paste raw transcript or dictate recap using Wispr Flow...\n\nExample structure:\n- Decisions agreed upon (e.g. Rate limits, cloud vendors, design standards)\n- Action items with owners and deadlines\n- Speaker attributions and commitments`}
+              placeholder={`Paste a transcript or write a short recap...\n\nHelpful details to include:\n- Decisions people agreed on\n- Tasks, owners, and due dates\n- Who said what, if it matters`}
               className={`w-full p-4 text-sm font-mono leading-relaxed bg-[#FAF9F6] border rounded-2xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all ${
                 errors.recapText ? "border-rose-400 bg-rose-50/20" : "border-stone-200"
               }`}
@@ -293,8 +321,7 @@ export function MeetingInputForm() {
         {/* Action Button Row */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-3 border-t border-stone-100">
           <div className="flex items-center gap-2 text-xs text-stone-500">
-            <Bot className="w-3.5 h-3.5 text-stone-400" />
-            <span>Persists extracted decisions and creates tasks awaiting approval. Detects cross-meeting conflicts.</span>
+            <span>Nothing is saved until you review and confirm the extracted details.</span>
           </div>
 
           <div className="flex items-center gap-3">
@@ -314,18 +341,21 @@ export function MeetingInputForm() {
               {isProcessing ? (
                 <>
                   <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Running Extraction & Conflict Engine...
+                  Preparing review...
                 </>
               ) : (
                 <>
-                  <Sparkles className="w-4 h-4" />
-                  Process & Persist Meeting
+                  <FileText className="w-4 h-4" />
+                  Review meeting
                 </>
               )}
             </button>
           </div>
         </div>
       </form>
+
+      </div>
+      )}
 
       {/* Clear Setup Message when No API Key is Configured */}
       {apiError && apiError.code === "MISSING_API_KEY" && (
@@ -347,20 +377,12 @@ export function MeetingInputForm() {
         <div className="p-5 bg-white rounded-2xl border border-rose-200 bg-rose-50/30 shadow-2xs space-y-2 text-xs animate-in fade-in">
           <div className="flex items-center gap-2 font-bold text-rose-900">
             <AlertTriangle className="w-4 h-4 text-rose-600" />
-            Gemini API Authentication Failed: Invalid Key
+            Could not connect to the extraction service
           </div>
           <p className="text-rose-800 leading-relaxed">
-            The key provided does not match an authorized Google AI Gemini key. Please verify that your <code className="bg-rose-100 px-1 py-0.5 rounded font-mono text-rose-900">GEMINI_API_KEY</code> in <code className="bg-rose-100 px-1 py-0.5 rounded font-mono text-rose-900">.env.local</code> is copied correctly from Google AI Studio.
-          </p>
+            Check your connection settings, then try again.
           <div className="pt-1 flex items-center gap-3">
-            <a
-              href="https://aistudio.google.com/app/apikey"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs font-semibold text-rose-900 underline hover:text-rose-950"
-            >
-              Verify key in Google AI Studio &rarr;
-            </a>
+            
           </div>
         </div>
       )}
@@ -370,10 +392,10 @@ export function MeetingInputForm() {
         <div className="p-5 bg-white rounded-2xl border border-amber-200 bg-amber-50/30 shadow-2xs space-y-2 text-xs animate-in fade-in">
           <div className="flex items-center gap-2 font-bold text-amber-900">
             <AlertTriangle className="w-4 h-4 text-amber-600" />
-            Gemini Flash Rate Limit Reached
+            Service is busy
           </div>
           <p className="text-amber-800 leading-relaxed">
-            You have hit the request quota limit for your Gemini API tier. Please wait 30 seconds before submitting another meeting recap.
+            Please wait a moment, then try again.
           </p>
         </div>
       )}
@@ -386,14 +408,10 @@ export function MeetingInputForm() {
           <div className="p-5 bg-white rounded-2xl border border-rose-200 bg-rose-50/20 shadow-2xs space-y-2 text-xs">
             <div className="flex items-center gap-2 font-bold text-rose-900">
               <AlertTriangle className="w-4 h-4 text-rose-600" />
-              Extraction Error: {apiError.code}
+              Could not process meeting
             </div>
             <p className="text-rose-800">{apiError.message}</p>
-            {apiError.details && (
-              <pre className="p-2.5 rounded bg-rose-100/60 text-rose-950 font-mono text-[10px] overflow-x-auto">
-                {apiError.details}
-              </pre>
-            )}
+            
           </div>
         )}
 
@@ -402,6 +420,8 @@ export function MeetingInputForm() {
         <ExtractionResultView
           result={extractionResponse.result}
           isPersisted={extractionResponse.isPersisted}
+          isSaving={isSaving}
+          onConfirmSave={handleConfirmSave}
           savedDecisions={extractionResponse.savedDecisions}
           savedTasks={extractionResponse.savedTasks}
           detectedConflicts={extractionResponse.detectedConflicts}
