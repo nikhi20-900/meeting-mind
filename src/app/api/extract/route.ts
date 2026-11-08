@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateExtractionResult } from "@/lib/validateExtraction";
 import { ExtractApiResponse } from "@/types/extraction";
-import { saveExtractedMeetingData } from "@/lib/db/repository";
+import { getAllDecisions } from "@/lib/db/repository";
+import { detectConflicts } from "@/lib/conflictDetection";
 import {
   generateGeminiExtraction,
   parseGeminiError,
@@ -213,24 +214,19 @@ Please extract structured summary, decisions, action items with owner and deadli
       model: modelUsed,
     });
 
-    // 5. Save to persistent database with conflict detection
-    // Tasks are held as "Awaiting Approval" (NEVER confirmed automatically)
-    const savedData = await saveExtractedMeetingData({
-      title,
-      meetingDate,
-      recapText,
-      attendees: attendees || "",
-      extraction: validatedResult,
-    });
+    // Preview conflicts without writing anything. The user reviews these results before save.
+    const historicalDecisions = await getAllDecisions();
+    const detectedConflicts = await detectConflicts(
+      validatedResult.decisions,
+      historicalDecisions,
+      title
+    );
 
     return NextResponse.json<ExtractApiResponse>({
       success: true,
       result: validatedResult,
-      savedMeeting: savedData.meeting,
-      savedDecisions: savedData.savedDecisions,
-      savedTasks: savedData.savedTasks,
-      detectedConflicts: savedData.detectedConflicts,
-      isPersisted: true,
+      detectedConflicts,
+      isPersisted: false,
     });
   } catch (error: any) {
     const sanitizedMsg = sanitizeErrorMessage(error.message || "Failed to process meeting extraction.");

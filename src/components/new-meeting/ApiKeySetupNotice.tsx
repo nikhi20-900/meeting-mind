@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { KeyRound, AlertTriangle, ExternalLink, Check, Copy, Sparkles } from "lucide-react";
+import { KeyRound, ExternalLink, Check, Copy, FileText } from "lucide-react";
 
 interface ApiKeySetupNoticeProps {
   onSessionKeySubmit?: (key: string) => void;
@@ -46,14 +46,14 @@ export function ApiKeySetupNotice({
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <h3 className="text-base font-bold text-amber-950">
-              LLM API Key Required for Real Extraction
+              Meeting extraction isn’t set up yet
             </h3>
             <span className="text-[10px] font-semibold bg-amber-200/80 text-amber-900 px-2 py-0.5 rounded-full border border-amber-300">
-              Setup Required
+              Setup needed
             </span>
           </div>
           <p className="text-xs sm:text-sm text-amber-900 leading-relaxed">
-            Meeting Mind requires an active LLM key to run live extraction. As per project guidelines, we never fake model extraction when an API key is missing.
+            Add an extraction key to process meeting notes. You can save it in your local settings or enter it for this session.
           </p>
         </div>
       </div>
@@ -63,10 +63,10 @@ export function ApiKeySetupNotice({
         {/* Method 1: Environment Variable */}
         <div className="p-4 rounded-xl bg-white border border-amber-200/80 text-xs space-y-2">
           <span className="font-semibold text-stone-900 block text-xs">
-            Method 1: Server Environment (.env.local)
+            Save a key in local settings
           </span>
           <p className="text-stone-600 text-[11px] leading-relaxed">
-            Create or edit <code className="bg-stone-100 px-1 py-0.5 rounded font-mono text-stone-800">.env.local</code> in the project root:
+            Add this line to <code className="bg-stone-100 px-1 py-0.5 rounded font-mono text-stone-800">.env.local</code> in the project root:
           </p>
 
           <div className="relative">
@@ -89,17 +89,17 @@ export function ApiKeySetupNotice({
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1 text-[11px] font-semibold text-orange-700 hover:text-orange-800"
           >
-            Get a free Google Gemini API key <ExternalLink className="w-3 h-3" />
+            Get an API key <ExternalLink className="w-3 h-3" />
           </a>
         </div>
 
         {/* Method 2: Live Session Key Input */}
         <div className="p-4 rounded-xl bg-white border border-amber-200/80 text-xs space-y-2">
           <span className="font-semibold text-stone-900 block text-xs">
-            Method 2: Interactive Session Key
+            Use a key for this session
           </span>
           <p className="text-stone-600 text-[11px] leading-relaxed">
-            Test immediately without restarting the dev server. Sent only server-side to the extraction API:
+            This key is kept for the current session and sent to the server for processing.
           </p>
 
           <form onSubmit={handleSaveSessionKey} className="space-y-2">
@@ -107,7 +107,7 @@ export function ApiKeySetupNotice({
               type="password"
               value={keyInput}
               onChange={(e) => setKeyInput(e.target.value)}
-              placeholder="Paste Gemini API key (AQ.Ab... or AIza...)"
+              placeholder="Paste your API key"
               className="w-full px-3 py-1.5 text-xs bg-stone-50 border border-stone-200 rounded-lg focus:outline-none focus:border-orange-500 font-mono"
             />
             <div className="flex items-center justify-between">
@@ -115,7 +115,7 @@ export function ApiKeySetupNotice({
                 type="submit"
                 className="px-3 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-medium text-xs shadow-2xs transition-colors cursor-pointer"
               >
-                Set Session Key
+                Use for this session
               </button>
               {savedLocally && (
                 <span className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1">
@@ -127,11 +127,11 @@ export function ApiKeySetupNotice({
         </div>
       </div>
 
-      {/* Alternative: Test Full Pipeline with Verified Demonstration Payload */}
+      {/* Sample option */}
       {onRunDemoFallback && (
         <div className="pt-2 border-t border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
           <span className="text-amber-900 text-[11px]">
-            Want to test Phase 3 persistence and conflict detection right now without adding an API key?
+            Want to explore the app without setting up a key?
           </span>
           <button
             onClick={onRunDemoFallback}
@@ -139,8 +139,8 @@ export function ApiKeySetupNotice({
             type="button"
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-white border border-amber-300 text-amber-900 hover:bg-amber-100/60 shadow-2xs transition-colors shrink-0 cursor-pointer"
           >
-            <Sparkles className="w-3.5 h-3.5 text-orange-600" />
-            Test DB Persistence & Conflict Engine
+            <FileText className="w-3.5 h-3.5" />
+            Load a sample meeting
           </button>
         </div>
       )}
