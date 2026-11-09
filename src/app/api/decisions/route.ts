@@ -29,6 +29,9 @@ export async function PATCH(req: NextRequest) {
     const parsed = await readJsonBody(req, 8 * 1024);
     if (parsed.response) return parsed.response;
     const body = parsed.body;
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return NextResponse.json({ success: false, error: "INVALID_REQUEST", message: "A decision update is required." }, { status: 400 });
+    }
     const { id, status, resolutionNotes } = body;
 
     if (!id || typeof id !== "string") {
@@ -51,11 +54,20 @@ export async function PATCH(req: NextRequest) {
         { status: 400 }
       );
     }
+    if (resolutionNotes !== undefined && (typeof resolutionNotes !== "string" || resolutionNotes.length > 1000)) {
+      return NextResponse.json(
+        { success: false, error: "INVALID_RESOLUTION_NOTE", message: "Resolution notes must be plain text under 1,000 characters." },
+        { status: 400 }
+      );
+    }
 
     const updatedDecision = await updateDecisionStatus(id, status, resolutionNotes);
     return NextResponse.json({ success: true, decision: updatedDecision });
   } catch (error: any) {
     console.error("[api/decisions] Failed to update decision:", error);
+    if (typeof error.message === "string" && error.message.includes("linked conflict")) {
+      return NextResponse.json({ success: false, error: "CONFLICT_RESOLUTION_REQUIRED", message: error.message }, { status: 409 });
+    }
     return NextResponse.json(
       { success: false, error: "UPDATE_FAILED", message: error.message },
       { status: 500 }

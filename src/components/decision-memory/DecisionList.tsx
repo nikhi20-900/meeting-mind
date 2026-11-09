@@ -275,7 +275,7 @@ export function DecisionList({ initialDecisions }: { initialDecisions: Decision[
 
                     {decision.status === "Conflict Flagged" && (
                       <Badge variant="conflict" className="text-[11px]">
-                        {decision.conflictSeverity || "Critical"} Severity
+                        {decision.conflictSeverity ? `${decision.conflictSeverity} Severity` : "Severity unknown"}
                       </Badge>
                     )}
 
@@ -341,26 +341,16 @@ export function DecisionList({ initialDecisions }: { initialDecisions: Decision[
                     <div className="font-semibold text-rose-950 flex items-center justify-between gap-2">
                       <span>Possible conflict with an earlier decision</span>
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-200 text-rose-900 border border-rose-300">
-                        {decision.conflictSeverity || "Critical"} Severity
+                        {decision.conflictSeverity ? `${decision.conflictSeverity} Severity` : "Severity unknown"}
                       </span>
                     </div>
                     <p className="text-rose-800 leading-relaxed">
                       {decision.conflictNotes}
                     </p>
-                    {decision.conflictResolution ? (
+                    {decision.conflictResolution && (
                       <div className="pt-1 text-[11px] text-rose-900 bg-rose-100/60 p-2 rounded-lg border border-rose-200/60 font-medium">
                         <strong className="text-rose-950">Suggested next step: </strong>
                         {decision.conflictResolution}
-                      </div>
-                    ) : (
-                      <div className="pt-1 text-[11px] text-rose-700 font-medium">
-                        {decision.category === "Governance"
-                          ? "Requires Security & Compliance review before modifying authentication or governance standards."
-                          : decision.category === "Architecture"
-                          ? "Requires Architecture sync to resolve infrastructure divergence and capacity constraints."
-                          : decision.category === "Client SLA"
-                          ? "Requires Client Success alignment before adjusting contractual service level thresholds."
-                          : "Requires human review and resolution before changes are adopted."}
                       </div>
                     )}
                     {decision.dependentSettingsNote && (
@@ -393,14 +383,21 @@ export function DecisionList({ initialDecisions }: { initialDecisions: Decision[
                       <div className="pt-2">
                         <DecisionImpactPanel
                           conflict={{
-                            id: `conf-${decision.id}`,
-                            newDecisionText: decision.decisionText,
-                            historicalDecisionId: decision.id,
-                            historicalDecisionText: decision.decisionText,
+                            id: decision.conflictRecordId || "",
+                            historicalDecisionId: decision.conflictWithDecisionId || "",
+                            historicalDecisionText: decision.conflictWithDecisionText || "",
                             conflictDescription: decision.conflictNotes,
-                            severity: decision.conflictSeverity || "Critical",
+                        severity: decision.conflictSeverity,
                             suggestedResolution: decision.conflictResolution,
                             dependentSettingsNote: decision.dependentSettingsNote,
+                          }}
+                          onSaved={() => {
+                            void fetch("/api/decisions")
+                              .then((response) => response.json())
+                              .then((data) => {
+                                if (data.success && Array.isArray(data.decisions)) setDecisions(data.decisions);
+                              })
+                              .catch((error) => console.error("[decision-memory] Could not refresh saved conflict status:", error));
                           }}
                         />
                       </div>

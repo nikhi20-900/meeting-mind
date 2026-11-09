@@ -142,23 +142,54 @@ export async function updateDecisionStatus(
   return mutateDatabase((db) => {
     const index = db.decisions.findIndex((d) => d.id === decisionId);
     if (index === -1) throw new Error(`Decision with id "${decisionId}" not found.`);
+    const hasUnresolvedConflict = db.conflicts.some(
+      (conflict) => !conflict.resolved && (conflict.sourceDecisionId === decisionId || conflict.targetDecisionId === decisionId)
+    );
+    if (hasUnresolvedConflict && newStatus !== "Conflict Flagged") {
+      throw new Error("Resolve the linked conflict before changing this decision’s status.");
+    }
 
     const updated: Decision = {
       ...db.decisions[index],
       status: newStatus,
       conflictResolution: resolutionNotes || db.decisions[index].conflictResolution,
-      hasConflictWarning: newStatus === "Conflict Flagged",
+      hasConflictWarning: newStatus === "Conflict Flagged" || hasUnresolvedConflict,
     };
     db.decisions[index] = updated;
-
-    if (newStatus !== "Conflict Flagged") {
-      db.conflicts = db.conflicts.map((conflict) =>
-        conflict.sourceDecisionId === decisionId || conflict.targetDecisionId === decisionId
-          ? { ...conflict, resolved: true, resolutionNotes: resolutionNotes || conflict.resolutionNotes }
-          : conflict
-      );
-    }
     return updated;
+  });
+}
+
+export async function resolveConflict(
+  conflictId: string,
+  earlierDecisionStatus: "Active" | "Under Review" | "Superseded",
+  resolutionNotes: string
+): Promise<{ sourceDecision: Decision; earlierDecision: Decision }> {
+  return mutateDatabase((db) => {
+    const conflict = db.conflicts.find((item) => item.id === conflictId);
+    if (!conflict) throw new Error(`Conflict with id "${conflictId}" not found.`);
+    if (conflict.resolved) throw new Error("This conflict has already been resolved.");
+
+    const source = db.decisions.find((decision) => decision.id === conflict.sourceDecisionId);
+    const earlier = db.decisions.find((decision) => decision.id === conflict.targetDecisionId);
+    if (!source || !earlier) throw new Error("A decision linked to this conflict could not be found.");
+
+    conflict.resolved = true;
+    conflict.resolutionNotes = resolutionNotes;
+    earlier.status = earlierDecisionStatus;
+    earlier.conflictResolution = resolutionNotes;
+    if (source.status === "Conflict Flagged") source.status = "Under Review";
+    source.conflictResolution = resolutionNotes;
+
+    for (const decision of [source, earlier]) {
+      const anotherOpenConflict = db.conflicts.some(
+        (item) => !item.resolved && (item.sourceDecisionId === decision.id || item.targetDecisionId === decision.id)
+      );
+      decision.hasConflictWarning = anotherOpenConflict;
+      if (anotherOpenConflict) decision.status = "Conflict Flagged";
+    }
+
+    return { sourceDecision: source, earlierDecision: earlier };
   });
 }
 
@@ -208,7 +239,11 @@ export async function saveExtractedMeetingData(params: {
         decisionText: dec.decisionText,
         rationale: dec.rationale,
         hasConflictWarning: !!matchingConflict,
+        conflictRecordId: matchingConflict?.id,
         conflictNotes: matchingConflict?.conflictDescription,
+        conflictWithDecisionId: matchingConflict?.historicalDecisionId,
+        conflictWithDecisionText: matchingConflict?.historicalDecisionText,
+        conflictWithMeetingTitle: matchingConflict?.historicalMeetingTitle,
         conflictSeverity: matchingConflict?.severity,
         conflictResolution: matchingConflict?.suggestedResolution,
         dependentSettingsNote: matchingConflict?.dependentSettingsNote,

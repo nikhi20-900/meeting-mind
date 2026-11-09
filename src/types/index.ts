@@ -20,7 +20,11 @@ export interface Decision {
   decisionText: string;
   rationale: string;
   hasConflictWarning?: boolean;
+  conflictRecordId?: string;
   conflictNotes?: string;
+  conflictWithDecisionId?: string;
+  conflictWithDecisionText?: string;
+  conflictWithMeetingTitle?: string;
   conflictSeverity?: "Critical" | "Warning";
   conflictResolution?: string;
   dependentSettingsNote?: string;

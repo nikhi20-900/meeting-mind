@@ -187,7 +187,6 @@ export function ExtractionResultView({
                   <div className="pt-2 border-t border-rose-100">
                     <DecisionImpactPanel
                       conflict={conf}
-                      associatedTaskId={savedTasks[0]?.id}
                     />
                   </div>
                 )}
@@ -338,7 +337,7 @@ export function ExtractionResultView({
                               Conflict Flagged
                             </Badge>
                             <Badge variant="conflict" className="text-[10px]">
-                              {matchingConflict?.severity || "Critical"} Severity
+                              {matchingConflict?.severity ? `${matchingConflict.severity} Severity` : "Severity unknown"}
                             </Badge>
                           </>
                         )}
