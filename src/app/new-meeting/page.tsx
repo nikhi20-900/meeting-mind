@@ -2,6 +2,9 @@ import React from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { MeetingInputForm } from "@/components/new-meeting/MeetingInputForm";
 
+// This route is intentionally held behind the workspace access check in the root layout.
+export const instant = false;
+
 export default function NewMeetingPage() {
   return (
     <AppShell>
