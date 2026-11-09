@@ -24,7 +24,6 @@ export function MeetingInputForm() {
   const [meetingDate, setMeetingDate] = useState("");
   const [recapText, setRecapText] = useState("");
   const [attendees, setAttendees] = useState("");
-  const [sessionApiKey, setSessionApiKey] = useState("");
 
   const [errors, setErrors] = useState<{ title?: string; recapText?: string }>({});
   const [isProcessing, setIsProcessing] = useState(false);
@@ -95,7 +94,6 @@ export function MeetingInputForm() {
           date: meetingDate,
           recapText: recapText.trim(),
           attendees: attendees.trim(),
-          sessionApiKey: sessionApiKey.trim() || undefined,
           allowDemonstrationFallback: allowFallback,
         }),
       });
@@ -370,12 +368,7 @@ export function MeetingInputForm() {
       {/* Clear Setup Message when No API Key is Configured */}
       {apiError && apiError.code === "MISSING_API_KEY" && (
         <ApiKeySetupNotice
-          currentSessionKey={sessionApiKey}
           isProcessing={isProcessing}
-          onSessionKeySubmit={(key) => {
-            setSessionApiKey(key);
-            setApiError(null);
-          }}
           onRunDemoFallback={() => {
             executeExtraction(true);
           }}
