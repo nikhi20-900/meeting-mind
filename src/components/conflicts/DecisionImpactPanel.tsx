@@ -1,23 +1,15 @@
 "use client";
 
-import React, { useState } from "react";
-import { getDecisionImpact, DecisionImpact, ResolutionOption } from "@/lib/decisionImpact";
-import { Badge } from "@/components/ui/Badge";
+import { useState } from "react";
+import { AlertTriangle, CheckCircle2, Layers, Loader2, ShieldAlert } from "lucide-react";
+import { DecisionStatus } from "@/types";
+import { getDecisionImpact } from "@/lib/decisionImpact";
 import { useWorkspaceRole } from "@/components/auth/WorkspaceAccessGate";
-import {
-  ShieldAlert,
-  Layers,
-  CheckCircle2,
-  AlertTriangle,
-  ArrowRight,
-  Lock,
-  Sparkles,
-} from "lucide-react";
+import { Badge } from "@/components/ui/Badge";
 
 interface DecisionImpactPanelProps {
   conflict: {
     id: string;
-    newDecisionText: string;
     historicalDecisionId: string;
     historicalDecisionText: string;
     conflictDescription?: string;
@@ -25,264 +17,129 @@ interface DecisionImpactPanelProps {
     suggestedResolution?: string;
     dependentSettingsNote?: string;
   };
-  associatedTaskId?: string;
-  onConfirmResolution?: (resolution: {
-    optionId: string;
-    title: string;
-    proposedAction: string;
-    targetTaskStatus?: string;
-  }) => void;
+  onSaved?: () => void;
 }
 
-export function DecisionImpactPanel({
-  conflict,
-  associatedTaskId,
-  onConfirmResolution,
-}: DecisionImpactPanelProps) {
+export function DecisionImpactPanel({ conflict, onSaved }: DecisionImpactPanelProps) {
   const workspaceRole = useWorkspaceRole();
-  const impact: DecisionImpact = getDecisionImpact(conflict);
-  const [selectedOptionId, setSelectedOptionId] = useState<string>(
-    impact.resolutionOptions.find((o) => o.recommended)?.id || impact.resolutionOptions[0]?.id
-  );
-  const [isConfirmed, setIsConfirmed] = useState(false);
+  const impact = getDecisionImpact(conflict);
+  const [selectedStatus, setSelectedStatus] = useState<DecisionStatus | null>(null);
   const [isApplying, setIsApplying] = useState(false);
-  const [appliedAction, setAppliedAction] = useState<string | null>(null);
+  const [savedStatus, setSavedStatus] = useState<DecisionStatus | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const selectedOption: ResolutionOption | undefined = impact.resolutionOptions.find(
-    (o) => o.id === selectedOptionId
-  );
-
-  const handleApplyResolution = async () => {
-    if (!selectedOption) return;
+  async function applyDecisionStatus() {
+    if (!selectedStatus || !conflict.historicalDecisionId) return;
     setIsApplying(true);
-
+    setError(null);
     try {
-      // If an associated task exists and a task status is specified, update via API
-      if (associatedTaskId && selectedOption.targetTaskStatus) {
-        await fetch("/api/tasks", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            id: associatedTaskId,
-            status: selectedOption.targetTaskStatus,
-          }),
-        }).catch((err) => console.warn("[DecisionImpactPanel] Task status update non-fatal error:", err));
+      const response = await fetch("/api/conflicts", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: conflict.id,
+          earlierDecisionStatus: selectedStatus,
+          resolutionNotes: `Human selected: ${selectedStatus}`,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || "The earlier decision could not be updated.");
       }
-
-      // If an associated decision exists and targetDecisionStatus is specified, update decision via API
-      if (conflict.historicalDecisionId && selectedOption.targetDecisionStatus) {
-        await fetch("/api/decisions", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            id: conflict.historicalDecisionId,
-            status: selectedOption.targetDecisionStatus,
-            resolutionNotes: selectedOption.proposedAction,
-          }),
-        }).catch((err) => console.warn("[DecisionImpactPanel] Decision update non-fatal error:", err));
-      }
-
-      setAppliedAction(selectedOption.proposedAction);
-      setIsConfirmed(true);
-
-      if (onConfirmResolution) {
-        onConfirmResolution({
-          optionId: selectedOption.id,
-          title: selectedOption.title,
-          proposedAction: selectedOption.proposedAction,
-          targetTaskStatus: selectedOption.targetTaskStatus,
-        });
-      }
+      setSavedStatus(selectedStatus);
+      onSaved?.();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "The earlier decision could not be updated.");
     } finally {
       setIsApplying(false);
     }
-  };
+  }
 
   return (
-    <div className="rounded-2xl border border-stone-200 bg-white p-4 sm:p-5 space-y-4 shadow-2xs">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-stone-100 pb-3">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-orange-50 border border-orange-200 flex items-center justify-center text-orange-600">
-            <Layers className="w-4 h-4" />
-          </div>
+    <section className="space-y-4 rounded-2xl border border-stone-200 bg-white p-4 shadow-2xs sm:p-5" aria-label="Conflict review">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-100 pb-3">
+        <div className="flex items-center gap-2.5">
+          <span className="grid h-8 w-8 place-items-center rounded-lg border border-stone-200 bg-stone-100 text-stone-700">
+            <Layers className="h-4 w-4" aria-hidden="true" />
+          </span>
           <div>
-            <h4 className="text-xs sm:text-sm font-bold text-stone-900 flex items-center gap-2">
-              Decision Impact Engine
-              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-stone-100 text-stone-700">
-                Audited
-              </span>
-            </h4>
-            <p className="text-[11px] text-stone-500">
-              Downstream consequence modeling and verified resolution pathways
-            </p>
+            <h4 className="text-sm font-semibold text-stone-900">Review the conflict</h4>
+            <p className="text-[11px] text-stone-500">Compare the recorded evidence before changing the earlier decision.</p>
           </div>
         </div>
-
-        <Badge variant={impact.downstreamImpact.riskLevel === "Critical" ? "conflict" : "warning"} className="text-[10px]">
-          {impact.downstreamImpact.riskLevel} Risk
+        <Badge variant={impact.downstreamImpact.riskLevel === "Critical" ? "conflict" : "warning"}>
+          {impact.downstreamImpact.riskLevel} attention
         </Badge>
       </div>
 
-      {/* Direct Conflict Section */}
-      <div className="p-3 rounded-xl bg-rose-50/60 border border-rose-200/80 space-y-1.5">
-        <div className="flex items-center gap-1.5 text-xs font-semibold text-rose-950">
-          <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0" />
-          <span>Direct Contradiction</span>
+      <div className="rounded-xl border border-rose-200 bg-rose-50/60 p-3.5">
+        <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-rose-950">
+          <ShieldAlert className="h-4 w-4 text-rose-700" aria-hidden="true" />
+          Recorded conflict evidence
         </div>
-        <p className="text-xs text-rose-900 leading-relaxed">
-          {impact.directConflict}
-        </p>
+        <p className="whitespace-pre-line text-xs leading-relaxed text-rose-900">{impact.directConflict}</p>
       </div>
 
-      {/* Downstream Impact Section */}
-      <div className="p-3.5 rounded-xl bg-[#FAF9F6] border border-stone-200/90 space-y-2.5">
-        <div className="flex items-center gap-1.5 text-xs font-semibold text-stone-900">
-          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-          <span>Potential Downstream Impact</span>
+      <div className="rounded-xl border border-stone-200 bg-[#FAF9F6] p-3.5">
+        <div className="mb-1.5 flex items-center gap-2 text-xs font-semibold text-stone-900">
+          <AlertTriangle className="h-4 w-4 text-amber-700" aria-hidden="true" />
+          What is known about impact
         </div>
-        <p className="text-xs text-stone-700 leading-relaxed">
-          {impact.downstreamImpact.summary}
-        </p>
-
-        {/* Affected Systems / Policies */}
-        <div className="flex flex-wrap items-center gap-1.5 pt-1">
-          <span className="text-[11px] font-semibold text-stone-600 mr-1">
-            Affected Systems:
-          </span>
-          {impact.downstreamImpact.affectedSystems.map((sys, idx) => (
-            <span
-              key={idx}
-              className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-stone-100 text-stone-700 border border-stone-200"
-            >
-              {sys}
-            </span>
-          ))}
-        </div>
-
-        {/* Dependent Setting Note (if present) */}
+        <p className="text-xs leading-relaxed text-stone-700">{impact.downstreamImpact.summary}</p>
         {impact.downstreamImpact.dependentSettings && (
-          <div className="p-2 rounded-lg bg-amber-50 border border-amber-200/80 text-[11px] text-amber-950 flex items-start gap-1.5">
-            <span className="font-semibold text-amber-900 shrink-0">Dependent Setting:</span>
-            <span>{impact.downstreamImpact.dependentSettings}</span>
-          </div>
+          <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-[11px] leading-relaxed text-amber-950">
+            <strong>Recorded dependent setting: </strong>{impact.downstreamImpact.dependentSettings}
+          </p>
+        )}
+        {impact.suggestedNextStep && (
+          <p className="mt-2 rounded-lg border border-stone-200 bg-white p-2 text-[11px] leading-relaxed text-stone-700">
+            <strong>Suggested next step for review: </strong>{impact.suggestedNextStep}
+          </p>
         )}
       </div>
 
-      {/* Resolution Options */}
-      <div className="space-y-2 pt-1">
-        <label className="block text-xs font-bold text-stone-800">
-          Resolution Pathways ({impact.resolutionOptions.length} available)
-        </label>
+      {impact.resolutionOptions.length > 0 ? (
         <div className="space-y-2">
-          {impact.resolutionOptions.map((opt) => {
-            const isSelected = selectedOptionId === opt.id;
-            return (
-              <div
-                key={opt.id}
-                onClick={() => !isConfirmed && setSelectedOptionId(opt.id)}
-                className={`p-3 rounded-xl border text-xs cursor-pointer transition-all ${
-                  isSelected
-                    ? "bg-orange-50/50 border-orange-300 ring-1 ring-orange-200/80 shadow-2xs"
-                    : "bg-white border-stone-200 hover:border-stone-300 hover:bg-stone-50/50"
-                } ${isConfirmed ? "opacity-75 cursor-not-allowed" : ""}`}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name={`resolution-${conflict.id}`}
-                      checked={isSelected}
-                      disabled={isConfirmed}
-                      onChange={() => setSelectedOptionId(opt.id)}
-                      className="accent-orange-600 cursor-pointer"
-                    />
-                    <span className="font-semibold text-stone-900">
-                      {opt.title}
-                    </span>
-                  </div>
-                  {opt.recommended && (
-                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 shrink-0 flex items-center gap-1">
-                      <Sparkles className="w-3 h-3 text-emerald-600" />
-                      Recommended
-                    </span>
-                  )}
-                </div>
-                <p className="mt-1.5 text-stone-600 text-[11px] pl-5 leading-relaxed">
-                  {opt.description}
-                </p>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+          <p className="text-xs font-semibold text-stone-800">Choose how to update the earlier decision</p>
+          {impact.resolutionOptions.map((option) => (
+            <label key={option.id} className={`flex cursor-pointer gap-3 rounded-xl border p-3 text-xs transition-colors ${selectedStatus === option.targetDecisionStatus ? "border-stone-500 bg-stone-50" : "border-stone-200 bg-white hover:bg-stone-50"}`}>
+              <input
+                type="radio"
+                name={`conflict-resolution-${conflict.id}`}
+                checked={selectedStatus === option.targetDecisionStatus}
+                disabled={savedStatus !== null}
+                onChange={() => setSelectedStatus(option.targetDecisionStatus)}
+                className="mt-0.5 accent-stone-800"
+              />
+              <span>
+                <span className="block font-semibold text-stone-900">{option.title}</span>
+                <span className="mt-1 block leading-relaxed text-stone-600">{option.description}</span>
+              </span>
+            </label>
+          ))}
+          <p className="text-[11px] text-stone-500">This updates the earlier decision and moves the newer conflicting decision to Under Review. Tasks are unchanged.</p>
 
-      {/* Review Proposed Action & Explicit Human Confirmation */}
-      {selectedOption && (
-        <div className="mt-3 p-3.5 rounded-xl border border-stone-200 bg-stone-50/70 space-y-2.5">
-          <div className="flex items-center justify-between text-xs">
-            <span className="font-semibold text-stone-900 flex items-center gap-1.5">
-              <Lock className="w-3.5 h-3.5 text-stone-500" />
-              Review Proposed Action Before Execution
-            </span>
-            <span className="text-[10px] text-stone-500 font-medium">
-              Human Gate Required
-            </span>
-          </div>
-
-          <div className="p-2.5 rounded-lg bg-white border border-stone-200 text-xs text-stone-800 space-y-1">
-            <div className="text-[11px] text-stone-500 font-medium">
-              Action to be recorded:
-            </div>
-            <p className="font-medium text-stone-900 leading-relaxed text-[11px]">
-              {selectedOption.proposedAction}
-            </p>
-            {selectedOption.targetTaskStatus && (
-              <div className="pt-1 text-[10px] text-stone-600">
-                <span className="font-semibold">Associated Task Target Status: </span>
-                <span className="font-mono px-1 py-0.2 bg-stone-100 rounded text-stone-800">
-                  {selectedOption.targetTaskStatus}
-                </span>
-              </div>
-            )}
-          </div>
-
-          {/* Confirmation Status / Action */}
-          {isConfirmed ? (
-            <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-center gap-2 font-medium">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-              <div>
-                <span>Resolution Action Confirmed & Applied by Human Operator</span>
-                <p className="text-[10px] text-emerald-700 font-normal mt-0.5">
-                  {appliedAction}
-                </p>
-              </div>
+          {savedStatus ? (
+            <div role="status" className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" />
+              <span>Earlier decision saved as <strong>{savedStatus}</strong>.</span>
             </div>
           ) : (
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-1">
-              <p className="text-[10px] text-stone-500 leading-tight">
-                Requires human confirmation. No task status or decision record will change until explicitly confirmed.
-              </p>
-              <button
-                type="button"
-                onClick={handleApplyResolution}
-                disabled={isApplying || workspaceRole !== "editor"}
-                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-orange-600 hover:bg-orange-700 text-white text-xs font-semibold shadow-2xs transition-colors shrink-0 disabled:opacity-50"
-              >
-                {isApplying ? (
-                  "Applying..."
-                ) : (
-                  <>
-                    Confirm & Apply Resolution
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </>
-                )}
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={applyDecisionStatus}
+              disabled={!selectedStatus || isApplying || workspaceRole !== "editor"}
+              className="inline-flex min-h-9 items-center gap-2 rounded-lg bg-stone-900 px-3.5 text-xs font-semibold text-white hover:bg-stone-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isApplying && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />}
+              Save earlier decision status
+            </button>
           )}
+          {error && <p role="alert" className="text-xs text-rose-700">{error} Refresh the record to confirm its current status.</p>}
         </div>
+      ) : (
+        <p className="text-xs text-stone-600">The earlier decision link is missing, so no status change is available from this panel.</p>
       )}
-    </div>
+    </section>
   );
 }
-
