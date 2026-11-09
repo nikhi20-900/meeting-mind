@@ -75,7 +75,6 @@ export async function POST(req: NextRequest) {
       date,
       recapText,
       attendees,
-      sessionApiKey,
       allowDemonstrationFallback,
     } = body;
 
@@ -102,14 +101,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 1. Read GEMINI_API_KEY from environment (.env.local) or session key
-    // Securely kept server-side; NEVER exposed to the browser or logged.
-    const resolvedKey =
-      (typeof sessionApiKey === "string" && sessionApiKey.trim().length > 0
-        ? sessionApiKey.trim()
-        : null) ||
-      process.env.GEMINI_API_KEY ||
-      process.env.GOOGLE_API_KEY;
+    // The Gemini key is read only from the server environment, never from browser input.
+    const resolvedKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 
     let rawJson: any = null;
     let providerUsed = "Google Gemini";
@@ -173,7 +166,7 @@ export async function POST(req: NextRequest) {
             success: false,
             error: "MISSING_API_KEY",
             message:
-              "Missing GEMINI_API_KEY. Please define GEMINI_API_KEY in your .env.local file or provide an active session API key to enable Gemini Flash extraction.",
+              "Missing GEMINI_API_KEY. Please define GEMINI_API_KEY in your .env.local file to enable meeting extraction.",
             supportedProviders: ["GEMINI_API_KEY (.env.local)"],
           },
           { status: 400 }

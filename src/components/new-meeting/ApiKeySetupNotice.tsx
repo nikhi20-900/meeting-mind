@@ -4,20 +4,14 @@ import React, { useState } from "react";
 import { KeyRound, ExternalLink, Check, Copy, FileText } from "lucide-react";
 
 interface ApiKeySetupNoticeProps {
-  onSessionKeySubmit?: (key: string) => void;
   onRunDemoFallback?: () => void;
-  currentSessionKey?: string;
   isProcessing?: boolean;
 }
 
 export function ApiKeySetupNotice({
-  onSessionKeySubmit,
   onRunDemoFallback,
-  currentSessionKey = "",
   isProcessing = false,
 }: ApiKeySetupNoticeProps) {
-  const [keyInput, setKeyInput] = useState(currentSessionKey);
-  const [savedLocally, setSavedLocally] = useState(false);
   const [copiedEnv, setCopiedEnv] = useState(false);
 
   const envSnippet = `GEMINI_API_KEY="paste-your-key-here"`;
@@ -26,15 +20,6 @@ export function ApiKeySetupNotice({
     navigator.clipboard.writeText(envSnippet);
     setCopiedEnv(true);
     setTimeout(() => setCopiedEnv(false), 2000);
-  };
-
-  const handleSaveSessionKey = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (onSessionKeySubmit && keyInput.trim()) {
-      onSessionKeySubmit(keyInput.trim());
-      setSavedLocally(true);
-      setTimeout(() => setSavedLocally(false), 2500);
-    }
   };
 
   return (
@@ -53,20 +38,19 @@ export function ApiKeySetupNotice({
             </span>
           </div>
           <p className="text-xs sm:text-sm text-amber-900 leading-relaxed">
-            Add an extraction key to process meeting notes. You can save it in your local settings or enter it for this session.
+            Add a Gemini key to the server’s local environment. The key stays out of the page and source control.
           </p>
         </div>
       </div>
 
-      {/* Two setup methods */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+      <div className="grid grid-cols-1 gap-4 pt-1">
         {/* Method 1: Environment Variable */}
         <div className="p-4 rounded-xl bg-white border border-amber-200/80 text-xs space-y-2">
           <span className="font-semibold text-stone-900 block text-xs">
             Save a key in local settings
           </span>
           <p className="text-stone-600 text-[11px] leading-relaxed">
-            Add this line to <code className="bg-stone-100 px-1 py-0.5 rounded font-mono text-stone-800">.env.local</code> in the project root:
+            Add this placeholder line to <code className="bg-stone-100 px-1 py-0.5 rounded font-mono text-stone-800">.env.local</code> in the project root, replace the value with your key, then restart the dev server:
           </p>
 
           <div className="relative">
@@ -91,41 +75,6 @@ export function ApiKeySetupNotice({
           >
             Get an API key <ExternalLink className="w-3 h-3" />
           </a>
-        </div>
-
-        {/* Method 2: Live Session Key Input */}
-        <div className="p-4 rounded-xl bg-white border border-amber-200/80 text-xs space-y-2">
-          <span className="font-semibold text-stone-900 block text-xs">
-            Use a key for this session
-          </span>
-          <p className="text-stone-600 text-[11px] leading-relaxed">
-            This key is kept for the current session and sent to the server for processing.
-          </p>
-
-          <form onSubmit={handleSaveSessionKey} className="space-y-2">
-            <label htmlFor="session-api-key" className="sr-only">API key for this session</label>
-            <input
-              id="session-api-key"
-              type="password"
-              value={keyInput}
-              onChange={(e) => setKeyInput(e.target.value)}
-              placeholder="Paste your API key"
-              className="w-full px-3 py-1.5 text-xs bg-stone-50 border border-stone-200 rounded-lg focus:outline-none focus:border-orange-500 font-mono"
-            />
-            <div className="flex items-center justify-between">
-              <button
-                type="submit"
-                className="px-3 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-medium text-xs shadow-2xs transition-colors cursor-pointer"
-              >
-                Use for this session
-              </button>
-              {savedLocally && (
-                <span className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1">
-                  <Check className="w-3 h-3" /> Key active for this session
-                </span>
-              )}
-            </div>
-          </form>
         </div>
       </div>
 
