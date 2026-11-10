@@ -13,11 +13,11 @@ import { authenticateApiRequest, enforceRateLimit, readJsonBody } from "@/lib/ap
 const SYSTEM_PROMPT = `You are Meeting Mind's intelligent meeting extraction engine.
 Your task is to analyze meeting recaps and transcripts, and extract:
 1. A structured summary (headline, executive summary, key takeaways, sentiment/tone, and primary focus), using "Unknown" or an empty list when unsupported.
-2. Explicit consensus decisions (with decision text, rationale, category [one of: "Architecture", "Product", "Governance", "Client SLA", "Operations", "Unknown"], speaker attribution, and confidenceScore from 0 to 1).
-3. Explicit action items (with task title, owner name, owner role, deadline/due date, priority ["High", "Medium", "Low", "Unknown"], and speaker attribution).
+2. Explicit consensus decisions (with decision text, rationale, a short exact evidence quote copied from the recap, category [one of: "Architecture", "Product", "Governance", "Client SLA", "Operations", "Unknown"], speaker attribution, and confidenceScore from 0 to 1).
+3. Explicit action items (with task title, owner name, owner role, deadline/due date, priority ["High", "Medium", "Low", "Unknown"], speaker attribution, and a short exact evidence quote copied from the recap).
 4. Identified speakers and their key contributions.
 
-Only report information supported by the recap. Do not infer or invent owners, roles, deadlines, priorities, rationales, speakers, or decisions. Use the exact string "Unknown" when a requested text field is not stated. Use an empty list when the recap does not support an item. Set decision confidenceScore below 0.75 when evidence is ambiguous; never use a default confidence.
+Only report information supported by the recap. Do not infer or invent owners, roles, deadlines, priorities, rationales, speakers, or decisions. Evidence must be copied verbatim from the recap, not rewritten; use "Unknown" if no short supporting quote exists. Use the exact string "Unknown" when a requested text field is not stated. Use an empty list when the recap does not support an item. Set decision confidenceScore below 0.75 when evidence is ambiguous; never use a default confidence.
 
 You MUST respond strictly with valid JSON conforming to the following structure:
 {
@@ -33,6 +33,7 @@ You MUST respond strictly with valid JSON conforming to the following structure:
       "id": "dec-1",
       "decisionText": "Clear statement of what was decided",
       "rationale": "Why this was decided and supporting evidence",
+      "evidence": "A short exact quote from the recap, or Unknown",
       "category": "Architecture | Product | Governance | Client SLA | Operations | Unknown",
       "speakerAttribution": "Who proposed or agreed to this decision, or Unknown",
       "confidenceScore": 0.0
@@ -46,7 +47,8 @@ You MUST respond strictly with valid JSON conforming to the following structure:
       "ownerRole": "Role explicitly stated, or Unknown",
       "deadline": "Deadline stated in the recap, or Unknown",
       "priority": "High | Medium | Low | Unknown",
-      "speakerAttribution": "Who explicitly agreed or assigned this task, or Unknown"
+      "speakerAttribution": "Who explicitly agreed or assigned this task, or Unknown",
+      "evidence": "A short exact quote from the recap, or Unknown"
     }
   ],
   "speakers": [
@@ -218,6 +220,7 @@ Please extract structured summary, decisions, action items with owner and deadli
       meetingDate,
       provider: providerUsed,
       model: modelUsed,
+      recapText,
     });
 
     // Preview conflicts without writing anything. The user reviews these results before save.

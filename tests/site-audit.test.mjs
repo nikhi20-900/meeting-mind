@@ -42,6 +42,8 @@ const { detectConflicts, evaluateConflictDeterministically } = jiti(
   "./src/lib/conflictDetection.ts"
 );
 const { getDecisionImpact } = jiti("./src/lib/decisionImpact.ts");
+const { daysOverdue } = jiti("./src/lib/dateUtils.ts");
+const { findTaskDecisionAssociation } = jiti("./src/lib/taskDecisionAssociation.ts");
 
 console.log("============================================================");
 console.log(" MEETING MIND COMPREHENSIVE SITE & PIPELINE TEST SUITE");
@@ -102,6 +104,71 @@ await test("Backend: Task Tracker lists tasks with proper status types", async (
       `Task ${t.id} has invalid status: ${t.status}`
     );
   }
+});
+
+await test("Task follow-through: only clearly matched tasks link to a decision", async () => {
+  const smsDecision = {
+    id: "dec-sms",
+    decisionText: "Allow SMS 2FA fallback for production database access when keys are unavailable.",
+  };
+  const webauthnDecision = {
+    id: "dec-webauthn",
+    decisionText: "Require WebAuthn hardware keys for all production database access.",
+  };
+
+  assert.equal(
+    findTaskDecisionAssociation("Configure SMS OTP fallback gateway", [smsDecision, webauthnDecision])?.id,
+    "dec-sms"
+  );
+  assert.equal(
+    findTaskDecisionAssociation("Investigate secure WebAuthn key alternatives", [smsDecision]),
+    undefined,
+    "Unclear textual matches must remain unlinked"
+  );
+});
+
+await test("Task follow-through: overdue dates require a clear year", async () => {
+  const reviewDate = new Date("2026-11-09T12:00:00Z");
+  assert.equal(daysOverdue("Nov 07", "2026-10-31", reviewDate), 2);
+  assert.equal(daysOverdue("2026-11-07", "2026-10-31", reviewDate), 2);
+  assert.equal(daysOverdue("Jan 07", "2026-12-31", reviewDate), null);
+  assert.equal(daysOverdue("Unknown", "2026-10-31", reviewDate), null);
+});
+
+await test("Extraction evidence: quotes must match the recap and missing details stay unknown", async () => {
+  const recapText = "Elena: Sarah will investigate WebAuthn alternatives by Nov 07.";
+  const result = validateExtractionResult({
+    decisions: [{
+      decisionText: "Investigate WebAuthn alternatives",
+      rationale: "Unknown",
+      category: "Governance",
+      confidenceScore: 0.6,
+      evidence: "Sarah will investigate WebAuthn alternatives",
+    }],
+    actionItems: [{
+      title: "Investigate WebAuthn alternatives",
+      ownerName: "Sarah",
+      deadline: "Nov 07",
+      evidence: "Sarah will investigate WebAuthn alternatives by Nov 07",
+    }, {
+      title: "Enable emergency SMS fallback",
+      evidence: "The team approved SMS fallback for all production systems",
+    }],
+  }, {
+    title: "Access review",
+    meetingDate: "2026-10-31",
+    provider: "Test",
+    model: "Test",
+    recapText,
+  });
+
+  assert.equal(result.decisions[0].evidence, "Sarah will investigate WebAuthn alternatives");
+  assert.equal(result.decisions[0].status, "Under Review", "Low-confidence decisions must remain under review");
+  assert.equal(result.actionItems[0].evidence, "Sarah will investigate WebAuthn alternatives by Nov 07");
+  assert.equal(result.actionItems[1].evidence, "Unknown", "Unsupported quotes must be discarded");
+  assert.equal(result.actionItems[1].ownerName, "Unknown");
+  assert.equal(result.actionItems[1].deadline, "Unknown");
+  assert.equal(result.actionItems[1].priority, "Unknown");
 });
 
 // -------------------------------------------------------------
@@ -291,12 +358,11 @@ You MUST respond strictly with valid JSON conforming to the following structure:
   assert.equal(dec06Conflict.severity, "Critical", "Security contradiction must be Critical severity");
   assert.match(dec06Conflict.conflictDescription, /FIDO2|WebAuthn/i, "Conflict must explain hardware FIDO2 violation");
 
-  // 4. Verify Decision Impact Engine returns 3 resolution options
+  // 4. Verify the impact view limits itself to recorded evidence and review choices
   const impact = getDecisionImpact(dec06Conflict);
   assert.ok(impact.resolutionOptions.length >= 2, "Impact engine must return 2-3 options");
-  const recommended = impact.resolutionOptions.find((o) => o.recommended);
-  assert.ok(recommended, "Recommended option must be present");
-  assert.match(recommended.proposedAction, /Rejected/i, "Recommended action must propose rejecting SMS fallback");
+  assert.match(impact.downstreamImpact.summary, /have not been verified/i, "Unverified impacts must be labeled");
+  assert.deepEqual(impact.downstreamImpact.affectedSystems, [], "Do not invent affected systems");
 
   // 5. Verify tasks start as 'Awaiting Approval' (NEVER auto-confirmed)
   const safeTask = savedData.savedTasks.find((t) =>

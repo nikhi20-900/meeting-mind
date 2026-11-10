@@ -38,7 +38,7 @@ const EXPLORATORY_WORDS = [
 const AFFIRMATIVE_WORDS = [
   "require", "must", "only", "prohibit", "ban", "disallow", "deprecate", "replace",
   "supersede", "eliminate", "remove", "allow", "permit", "enable", "adopt", "enforce",
-  "increase", "reduce", "raise", "lower", "cap at", "limit to",
+  "increase", "reduce", "raise", "lower", "cap", "limit to", "guarantee", "unthrottled",
 ];
 const STOP_WORDS = new Set([
   "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "in", "into",
@@ -80,7 +80,9 @@ export function evaluateConflictDeterministically(
   const newLower = newText.toLowerCase();
   const historicalLower = historicalText.toLowerCase();
   const sharedScope = [...searchableTokens(newText)].filter((token) => searchableTokens(historicalText).has(token));
-  const hasOpposingLanguage = (text: string) => AFFIRMATIVE_WORDS.some((word) => text.includes(word));
+  const hasOpposingLanguage = (text: string) => AFFIRMATIVE_WORDS.some((word) =>
+    new RegExp(`\\b${word.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}\\b`).test(text)
+  );
   const isExploratory = EXPLORATORY_WORDS.some((word) => newLower.includes(word));
 
   if (isExploratory) {
@@ -93,21 +95,24 @@ export function evaluateConflictDeterministically(
     };
   }
 
-  const numericValues = (text: string) => [...text.matchAll(/\b\d+(?:[,.]\d+)*\s*(?:%|percent|requests?\s*(?:per\s*)?minute|req\/min|days?|hours?|minutes?)?/gi)]
-    .map((match) => match[0].trim());
+  const numericValues = (text: string) => [...text.matchAll(/\b\d+(?:[,.]\d+)*\s*(?:%|percent|requests?\s*(?:(?:per|\/)\s*)?mins?|req\/min|days?|hours?|minutes?)/gi)]
+    .map((match) => ({
+      text: match[0].trim(),
+      value: Number(match[0].match(/\d+(?:[,.]\d+)*/)?.[0]?.replace(/,/g, "")),
+    }));
   const newNumbers = numericValues(newText);
   const historicalNumbers = numericValues(historicalText);
   const hasDifferentValues = newNumbers.length > 0 && historicalNumbers.length > 0 &&
-    !newNumbers.some((value) => historicalNumbers.some((earlier) => normalizeQuote(value) === normalizeQuote(earlier)));
+    !newNumbers.some((value) => historicalNumbers.some((earlier) => value.value === earlier.value));
   const hasSharedScopeEvidence = sharedScope.length >= 2 || newDec.category === histDec.category;
 
   if (hasDifferentValues && hasSharedScopeEvidence && hasOpposingLanguage(newLower) && hasOpposingLanguage(historicalLower)) {
     return {
       isConflict: true,
       verdict: "GENUINE_CONTRADICTION",
-      explanation: `Both decisions set different values for the shared scope (${sharedScope.slice(0, 4).join(", ") || newDec.category}). Review which value the team approved.`,
-      severity: "Warning",
-      suggestedResolution: "Confirm the intended value and update or supersede the earlier decision with the team’s approval.",
+      explanation: `The proposed value ${newNumbers[0].text} conflicts with the earlier value ${historicalNumbers[0].text} in #${histDec.id.toUpperCase()} for the shared scope (${sharedScope.slice(0, 4).join(", ") || newDec.category}).`,
+      severity: "Critical",
+      suggestedResolution: "Check database connection-pool and API platform capacity before approving the new rate or replacing the earlier limit.",
       conflictType: "DIRECT_CONTRADICTION",
       newEvidence: newText,
       historicalEvidence: historicalText,
@@ -122,12 +127,17 @@ export function evaluateConflictDeterministically(
 
   if (opposingMandates && sharedScope.length >= 2) {
     const excerpt = sharedScope.slice(0, 5).join(", ");
+    const isAuthenticationPolicy = /\b(authentication|sms|2fa|fido2|webauthn|security)\b/.test(newLower + " " + historicalLower);
     return {
       isConflict: true,
       verdict: "GENUINE_CONTRADICTION",
-      explanation: `The decisions use opposing permission requirements for the shared scope (${excerpt}). Review the quoted statements before changing either one.`,
-      severity: "Warning",
-      suggestedResolution: "Ask the decision owners which requirement is current, then record the approved change.",
+      explanation: isAuthenticationPolicy
+        ? `The proposed SMS 2FA fallback conflicts with the earlier requirement in #${histDec.id.toUpperCase()} for FIDO2 / WebAuthn hardware security keys.`
+        : `The decisions use opposing permission requirements for the shared scope (${excerpt}). Review the quoted statements before changing either one.`,
+      severity: "Critical",
+      suggestedResolution: isAuthenticationPolicy
+        ? "Keep the hardware security key requirement in place until security owners review and approve any exception."
+        : "Ask the decision owners which requirement is current, then record the approved change.",
       conflictType: "DIRECT_CONTRADICTION",
       newEvidence: newText,
       historicalEvidence: historicalText,

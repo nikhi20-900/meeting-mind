@@ -4,6 +4,7 @@ import { Decision, MeetingSummary, TaskItem, DashboardStats, TaskStatus } from "
 import { MeetingExtractionResult } from "@/types/extraction";
 import { ConflictRecord } from "./types";
 import { detectConflicts, DetectedConflict } from "@/lib/conflictDetection";
+import { findTaskDecisionAssociation } from "@/lib/taskDecisionAssociation";
 
 function dateStartUTC(value?: string): number | null {
   if (!value) return null;
@@ -108,7 +109,13 @@ export async function getAllDecisions(): Promise<Decision[]> {
 
 export async function getAllTasks(): Promise<TaskItem[]> {
   const db = await readDatabase();
-  return db.tasks;
+  return db.tasks.map((task) => {
+    if (!task.linkedConflictId) return task;
+    const unresolved = db.conflicts.some(
+      (conflict) => conflict.id === task.linkedConflictId && !conflict.resolved
+    );
+    return unresolved ? task : { ...task, linkedConflictId: undefined };
+  });
 }
 
 export async function getAllConflicts(): Promise<ConflictRecord[]> {
@@ -124,8 +131,17 @@ export async function updateTaskStatus(
     const index = db.tasks.findIndex((t) => t.id === taskId);
     if (index === -1) throw new Error(`Task with id "${taskId}" not found.`);
 
+    const task = db.tasks[index];
+    if (
+      task.linkedConflictId &&
+      ["Confirmed", "In Progress", "Completed"].includes(newStatus) &&
+      db.conflicts.some((conflict) => conflict.id === task.linkedConflictId && !conflict.resolved)
+    ) {
+      throw new Error("Resolve the linked decision conflict before confirming this task.");
+    }
+
     const updated: TaskItem = {
-      ...db.tasks[index],
+      ...task,
       status: newStatus,
       requiresUserConfirmation: newStatus === "Awaiting Approval",
     };
@@ -238,6 +254,7 @@ export async function saveExtractedMeetingData(params: {
         confidenceScore: dec.confidenceScore,
         decisionText: dec.decisionText,
         rationale: dec.rationale,
+        evidence: dec.evidence,
         hasConflictWarning: !!matchingConflict,
         conflictRecordId: matchingConflict?.id,
         conflictNotes: matchingConflict?.conflictDescription,
@@ -251,27 +268,38 @@ export async function saveExtractedMeetingData(params: {
     });
 
     // 4. Keep proposed tasks awaiting explicit human approval.
-    const savedTasks: TaskItem[] = extraction.actionItems.map((action) => ({
-      id: `tsk-${randomUUID()}`,
-      title: action.title,
-      owner: {
-        name: action.ownerName || "Unknown",
-        avatar: (action.ownerName || "UN")
-          .split(" ")
-          .map((name) => name[0])
-          .join("")
-          .slice(0, 2)
-          .toUpperCase(),
-        role: action.ownerRole || "Unknown",
-      },
-      dueDate: action.deadline || "Unknown",
-      priority: action.priority || "Unknown",
-      status: "Awaiting Approval",
-      associatedMeeting: title,
-      associatedDecisionId: savedDecisions[0]?.id,
-      associatedDecisionText: savedDecisions[0]?.decisionText,
-      requiresUserConfirmation: true,
-    }));
+    const savedTasks: TaskItem[] = extraction.actionItems.map((action) => {
+      const extractedDecision = findTaskDecisionAssociation(action.title, extraction.decisions);
+      const persistedDecisionId = extractedDecision
+        ? persistedDecisionIds.get(extractedDecision.id)
+        : undefined;
+      const associatedDecision = savedDecisions.find((decision) => decision.id === persistedDecisionId);
+      const linkedConflictId = associatedDecision?.conflictRecordId && conflictsDetected.some(
+        (conflict) => conflict.id === associatedDecision.conflictRecordId
+      )
+        ? associatedDecision.conflictRecordId
+        : undefined;
+      const ownerName = action.ownerName || "Unknown";
+      return {
+        id: `tsk-${randomUUID()}`,
+        title: action.title,
+        owner: {
+          name: ownerName,
+          avatar: ownerName.split(" ").map((name) => name[0]).join("").slice(0, 2).toUpperCase() || "UN",
+          role: action.ownerRole || "Unknown",
+        },
+        dueDate: action.deadline || "Unknown",
+        meetingDate: meetingDate || undefined,
+        priority: action.priority || "Unknown",
+        status: "Awaiting Approval",
+        associatedMeeting: title,
+        associatedDecisionId: associatedDecision?.id,
+        associatedDecisionText: associatedDecision?.decisionText,
+        linkedConflictId,
+        evidence: action.evidence,
+        requiresUserConfirmation: true,
+      };
+    });
 
     const participantList = attendees
       ? attendees.split(",").map((name) => name.trim()).filter(Boolean)

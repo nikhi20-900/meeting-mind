@@ -5,6 +5,8 @@ import Link from "next/link";
 import { ExtractedDecision, MeetingExtractionResult } from "@/types/extraction";
 import { Decision, TaskItem } from "@/types";
 import { DetectedConflict } from "@/lib/conflictDetection";
+import { findTaskDecisionAssociation } from "@/lib/taskDecisionAssociation";
+import { daysOverdue } from "@/lib/dateUtils";
 import { DecisionImpactPanel } from "@/components/conflicts/DecisionImpactPanel";
 import { Badge } from "@/components/ui/Badge";
 import {
@@ -237,23 +239,32 @@ export function ExtractionResultView({
           </div>
         </div>
 
-        {/* 1. Structured Executive Summary */}
+        {/* 1. Meeting Summary */}
         <div className="space-y-3 pt-1">
           <div>
             <span className="text-[11px] font-mono uppercase tracking-wider text-stone-400 font-semibold block">
-              Executive Headline
+              {currentConflicts.length > 0 ? "Discussion summary · decision unresolved" : "Meeting summary"}
             </span>
             <h4 className="text-base sm:text-lg font-semibold text-stone-900 mt-0.5">
-              {result.summary.headline}
+              {currentConflicts.length > 0 ? "Decision needs review" : result.summary.headline}
             </h4>
           </div>
 
-          <p className="text-sm text-stone-700 leading-relaxed bg-[#FAF9F6] p-4 rounded-xl border border-stone-100">
-            {result.summary.executiveSummary}
-          </p>
+          {currentConflicts.length > 0 ? (
+            <div role="note" className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-sm leading-relaxed text-amber-950">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
+              <p>
+                The recap includes a proposed decision that may conflict with an earlier one. Review the two statements below before treating it as approved. Nothing is approved yet.
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-stone-700 leading-relaxed bg-[#FAF9F6] p-4 rounded-xl border border-stone-100">
+              {result.summary.executiveSummary}
+            </p>
+          )}
 
           {/* Key Takeaways */}
-          {result.summary.keyTakeaways && result.summary.keyTakeaways.length > 0 && (
+          {currentConflicts.length === 0 && result.summary.keyTakeaways && result.summary.keyTakeaways.length > 0 && (
             <div className="space-y-2 pt-2">
               <span className="text-xs font-semibold text-stone-700 flex items-center gap-1.5">
                 
@@ -270,11 +281,13 @@ export function ExtractionResultView({
             </div>
           )}
 
-          <div className="flex flex-wrap items-center gap-4 text-xs text-stone-500 pt-2 border-t border-stone-100">
-            <span>Primary Focus: <strong className="text-stone-800">{result.summary.primaryFocus}</strong></span>
-            <span>•</span>
-            <span>Tone: <strong className="text-stone-800">{result.summary.sentimentOrTone}</strong></span>
-          </div>
+          {currentConflicts.length === 0 && (
+            <div className="flex flex-wrap items-center gap-4 text-xs text-stone-500 pt-2 border-t border-stone-100">
+              <span>Primary Focus: <strong className="text-stone-800">{result.summary.primaryFocus}</strong></span>
+              <span>•</span>
+              <span>Tone: <strong className="text-stone-800">{result.summary.sentimentOrTone}</strong></span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -289,7 +302,7 @@ export function ExtractionResultView({
               </div>
               <div>
                 <h3 className="text-base font-bold text-stone-900">
-                  Extracted Decisions
+                  Decisions to review
                 </h3>
                 <p className="text-[11px] text-stone-500">
                   Edit or set aside before saving
@@ -297,7 +310,7 @@ export function ExtractionResultView({
               </div>
             </div>
             <span className="text-xs bg-stone-100 px-2 py-0.5 rounded-full font-medium text-stone-700">
-              {reviewedDecisions.length} to add
+              {reviewedDecisions.length} proposed
             </span>
           </div>
 
@@ -408,6 +421,10 @@ export function ExtractionResultView({
                           <span className="font-medium text-stone-700">Context: </span>
                           {dec.rationale || "Not provided"}
                         </div>
+                        <div className="text-xs text-stone-600 bg-white p-2.5 rounded-lg border border-stone-100">
+                          <span className="font-medium text-stone-700">Evidence from recap: </span>
+                          {dec.evidence && dec.evidence !== "Unknown" ? `“${dec.evidence}”` : "Not identified in the recap."}
+                        </div>
                         <div className="flex flex-wrap gap-2 pt-1">
                           <button type="button" onClick={() => { setEditingDecision({ ...dec }); setDecisionError(null); }} className="rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-xs font-medium text-stone-700 hover:bg-stone-50">Edit</button>
                           <button type="button" onClick={() => handleSetAsideDecision(dec)} className="rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-xs font-medium text-stone-700 hover:border-rose-300 hover:text-rose-800">Set aside</button>
@@ -478,71 +495,106 @@ export function ExtractionResultView({
             </p>
           ) : (
             <div className="space-y-3.5">
-              {result.actionItems.map((action) => (
-                <div
-                  key={action.id}
-                  className="p-4 rounded-xl border border-amber-200/80 bg-amber-50/15 space-y-2.5"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <Badge
-                      variant={
-                        action.priority === "High"
-                          ? "high"
-                          : action.priority === "Medium"
-                          ? "warning"
-                          : "neutral"
-                      }
-                      className="text-[10px]"
-                    >
-                      {action.priority === "Unknown" ? "Priority unknown" : `${action.priority} priority`}
-                    </Badge>
+              {result.actionItems.map((action) => {
+                const relatedDecision = findTaskDecisionAssociation(action.title, reviewedDecisions);
+                const relatedConflict = relatedDecision
+                  ? currentConflicts.find((conflict) => conflict.newDecisionId === relatedDecision.id)
+                  : undefined;
+                return (
+                  <div
+                    key={action.id}
+                    className="p-4 rounded-xl border border-amber-200/80 bg-amber-50/15 space-y-2.5"
+                  >
+                    {(() => {
+                      const pastDueBy = daysOverdue(
+                        action.deadline,
+                        result.meetingDate,
+                        new Date(result.metadata.extractedAt)
+                      );
+                      return pastDueBy ? (
+                        <div className="flex items-center gap-1.5 text-xs font-semibold text-rose-800">
+                          <Clock className="h-3.5 w-3.5" />
+                          Past due by {pastDueBy} {pastDueBy === 1 ? "day" : "days"} when this review was created
+                        </div>
+                      ) : null;
+                    })()}
+                    <div className="flex items-center justify-between gap-2">
+                      <Badge
+                        variant={
+                          action.priority === "High"
+                            ? "high"
+                            : action.priority === "Medium"
+                            ? "warning"
+                            : "neutral"
+                        }
+                        className="text-[10px]"
+                      >
+                        {action.priority === "Unknown" ? "Priority unknown" : `${action.priority} priority`}
+                      </Badge>
 
-                    <span className="text-[11px] text-amber-800 font-medium flex items-center gap-1">
-                      <AlertCircle className="w-3 h-3 text-amber-600" />
-                      Awaiting User Confirmation
-                    </span>
-                  </div>
-
-                  <p className="text-sm font-semibold text-stone-900 leading-snug">
-                    {action.title}
-                  </p>
-
-                  {/* Owner & Deadline Row */}
-                  <div className="flex items-center justify-between p-2.5 rounded-lg bg-white border border-stone-100 text-xs">
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-full bg-stone-800 text-white text-[10px] font-semibold flex items-center justify-center">
-                        {action.ownerName.slice(0, 2).toUpperCase()}
-                      </div>
-                      <div>
-                        <span className="font-semibold text-stone-900 block leading-tight">
-                          {action.ownerName}
-                        </span>
-                        <span className="text-[10px] text-stone-500 leading-tight block">
-                          {action.ownerRole}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="text-right">
-                      <span className="text-[10px] text-stone-400 font-mono uppercase block">
-                        Deadline
-                      </span>
-                      <span className="font-semibold text-stone-800 flex items-center gap-1">
-                        <Calendar className="w-3 h-3 text-stone-400" />
-                        {action.deadline}
+                      <span className="text-[11px] text-amber-800 font-medium flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3 text-amber-600" />
+                        Awaiting User Confirmation
                       </span>
                     </div>
-                  </div>
 
-                  {action.speakerAttribution && (
-                    <div className="text-[11px] text-stone-500 flex items-center gap-1.5 pt-0.5">
-                      <Quote className="w-3 h-3 text-stone-400 shrink-0" />
-                      <span className="font-medium text-stone-700">Attribution:</span>
-                      <span className="truncate">{action.speakerAttribution}</span>
+                    <p className="text-sm font-semibold text-stone-900 leading-snug">
+                      {action.title}
+                    </p>
+
+                    {relatedConflict && (
+                      <div role="note" className="flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 p-2.5 text-xs leading-relaxed text-rose-900">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-700" />
+                        <p>
+                          <strong>Linked to a decision conflict.</strong>{" "}
+                          {isPersisted
+                            ? `This task remains unapproved until the conflict with #${relatedConflict.historicalDecisionId.toUpperCase()} is resolved.`
+                            : `If you save this meeting, this task will remain unapproved until the conflict with #${relatedConflict.historicalDecisionId.toUpperCase()} is resolved.`}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Owner & Deadline Row */}
+                    <div className="flex items-center justify-between p-2.5 rounded-lg bg-white border border-stone-100 text-xs">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-stone-800 text-white text-[10px] font-semibold flex items-center justify-center">
+                          {action.ownerName.slice(0, 2).toUpperCase()}
+                        </div>
+                        <div>
+                          <span className="font-semibold text-stone-900 block leading-tight">
+                            {action.ownerName}
+                          </span>
+                          <span className="text-[10px] text-stone-500 leading-tight block">
+                            {action.ownerRole}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        <span className="text-[10px] text-stone-400 font-mono uppercase block">
+                          Deadline
+                        </span>
+                        <span className="font-semibold text-stone-800 flex items-center gap-1">
+                          <Calendar className="w-3 h-3 text-stone-400" />
+                          {action.deadline}
+                        </span>
+                      </div>
                     </div>
-                  )}
-                </div>
-              ))}
+
+                    {action.speakerAttribution && (
+                      <div className="text-[11px] text-stone-500 flex items-center gap-1.5 pt-0.5">
+                        <Quote className="w-3 h-3 text-stone-400 shrink-0" />
+                        <span className="font-medium text-stone-700">Attribution:</span>
+                        <span className="truncate">{action.speakerAttribution}</span>
+                      </div>
+                    )}
+                    <div className="text-[11px] leading-relaxed text-stone-600">
+                      <span className="font-medium text-stone-700">Evidence from recap: </span>
+                      {action.evidence && action.evidence !== "Unknown" ? `“${action.evidence}”` : "Not identified in the recap."}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -601,7 +653,9 @@ export function ExtractionResultView({
           <p className="mt-1 text-xs text-stone-600">
             {isPersisted
               ? "You can review task approvals or return to your decision memory."
-              : "Saving adds the meeting and decisions you keep. Tasks stay in Awaiting Approval."}
+              : currentConflicts.length > 0
+              ? "Saving adds the meeting and decisions you keep. Conflicting decisions stay flagged until someone resolves them; tasks remain unapproved."
+              : "Saving adds the meeting and decisions you keep. Tasks remain unapproved until you confirm them."}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

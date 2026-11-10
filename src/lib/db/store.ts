@@ -1,18 +1,21 @@
 import fs from "fs/promises";
 import path from "path";
+import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
-import { MeetingMindDatabase } from "./types";
+import type { PoolClient } from "pg";
+import type { ConflictRecord, MeetingMindDatabase } from "./types";
+import type { Decision, MeetingSummary, TaskItem } from "@/types";
 import { sampleMeetings, sampleDecisions, sampleTasks } from "@/data/mockData";
 
 const DB_DIR = path.join(process.cwd(), "data");
 const DB_FILE = path.join(DB_DIR, "meeting_mind_db.json");
-const TMP_FILE = path.join(DB_DIR, "meeting_mind_db.tmp.json");
 const STATE_ID = 1;
+const SCHEMA_LOCK_ID = 734120018;
 
 type DatabaseMutation<T> = (database: MeetingMindDatabase) => T | Promise<T>;
 
 const globalForPg = globalThis as typeof globalThis & { meetingMindPool?: Pool };
-let writeQueue = Promise.resolve();
+let fileMutationQueue: Promise<void> = Promise.resolve();
 let schemaReady: Promise<void> | undefined;
 let rateLimitSchemaReady: Promise<void> | undefined;
 const localRateLimits = new Map<string, { count: number; resetAt: number }>();
@@ -77,21 +80,103 @@ function getPool(): Pool {
   return globalForPg.meetingMindPool;
 }
 
-async function ensurePostgresState(): Promise<void> {
+async function ensurePostgresSchema(): Promise<void> {
   if (!schemaReady) {
     schemaReady = (async () => {
-      const pool = getPool();
-      await pool.query(`
+      const client = await getPool().connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("SELECT pg_advisory_xact_lock($1::bigint)", [SCHEMA_LOCK_ID]);
+
+        // Retain the legacy table as a one-time migration source for existing deployments.
+        await client.query(`
         CREATE TABLE IF NOT EXISTS meeting_mind_state (
           id SMALLINT PRIMARY KEY CHECK (id = 1),
           state JSONB NOT NULL,
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
       `);
-      await pool.query(
-        `INSERT INTO meeting_mind_state (id, state) VALUES ($1, $2::jsonb) ON CONFLICT (id) DO NOTHING`,
-        [STATE_ID, JSON.stringify(getEmptyDatabase())]
-      );
+        await client.query(`
+          CREATE TABLE IF NOT EXISTS meeting_mind_metadata (
+            id SMALLINT PRIMARY KEY CHECK (id = 1),
+            version INTEGER NOT NULL,
+            initialized_at TIMESTAMPTZ NOT NULL,
+            last_updated TIMESTAMPTZ NOT NULL
+          )
+        `);
+        await client.query(`
+          CREATE TABLE IF NOT EXISTS meeting_mind_meetings (
+            id TEXT PRIMARY KEY,
+            position INTEGER NOT NULL,
+            meeting_date TEXT NOT NULL,
+            status TEXT NOT NULL,
+            payload JSONB NOT NULL
+          )
+        `);
+        await client.query(`
+          CREATE TABLE IF NOT EXISTS meeting_mind_decisions (
+            id TEXT PRIMARY KEY,
+            position INTEGER NOT NULL,
+            meeting_id TEXT NOT NULL,
+            category TEXT NOT NULL,
+            status TEXT NOT NULL,
+            payload JSONB NOT NULL
+          )
+        `);
+        await client.query(`
+          CREATE TABLE IF NOT EXISTS meeting_mind_tasks (
+            id TEXT PRIMARY KEY,
+            position INTEGER NOT NULL,
+            associated_decision_id TEXT,
+            status TEXT NOT NULL,
+            due_date TEXT NOT NULL,
+            payload JSONB NOT NULL
+          )
+        `);
+        await client.query(`
+          CREATE TABLE IF NOT EXISTS meeting_mind_conflicts (
+            id TEXT PRIMARY KEY,
+            position INTEGER NOT NULL,
+            source_decision_id TEXT NOT NULL,
+            target_decision_id TEXT NOT NULL,
+            resolved BOOLEAN NOT NULL,
+            payload JSONB NOT NULL
+          )
+        `);
+        await client.query("CREATE INDEX IF NOT EXISTS meeting_mind_meetings_date_idx ON meeting_mind_meetings (meeting_date)");
+        await client.query("CREATE INDEX IF NOT EXISTS meeting_mind_decisions_meeting_idx ON meeting_mind_decisions (meeting_id)");
+        await client.query("CREATE INDEX IF NOT EXISTS meeting_mind_decisions_status_idx ON meeting_mind_decisions (status)");
+        await client.query("CREATE INDEX IF NOT EXISTS meeting_mind_tasks_status_due_idx ON meeting_mind_tasks (status, due_date)");
+        await client.query("CREATE INDEX IF NOT EXISTS meeting_mind_tasks_decision_idx ON meeting_mind_tasks (associated_decision_id)");
+        await client.query("CREATE INDEX IF NOT EXISTS meeting_mind_conflicts_decisions_idx ON meeting_mind_conflicts (source_decision_id, target_decision_id)");
+
+        const metadata = await client.query("SELECT id FROM meeting_mind_metadata WHERE id = $1", [STATE_ID]);
+        if (!metadata.rows[0]) {
+          const legacy = await client.query<{ state: MeetingMindDatabase }>(
+            "SELECT state FROM meeting_mind_state WHERE id = $1",
+            [STATE_ID]
+          );
+          const initial = legacy.rows[0]?.state || getEmptyDatabase();
+          await persistEntityRows(client, initial);
+          await client.query(
+            `INSERT INTO meeting_mind_metadata (id, version, initialized_at, last_updated)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT (id) DO NOTHING`,
+            [
+              STATE_ID,
+              Number(initial.meta?.version) || 1,
+              initial.meta?.initializedAt || new Date().toISOString(),
+              initial.meta?.lastUpdated || new Date().toISOString(),
+            ]
+          );
+        }
+        await client.query("COMMIT");
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
     })().catch((error) => {
       schemaReady = undefined;
       throw error;
@@ -99,6 +184,69 @@ async function ensurePostgresState(): Promise<void> {
   }
 
   await schemaReady;
+}
+
+type PostgresEntityTable = "meeting_mind_meetings" | "meeting_mind_decisions" | "meeting_mind_tasks" | "meeting_mind_conflicts";
+
+async function synchronizeEntityRows<T extends { id: string }>(
+  client: PoolClient,
+  table: PostgresEntityTable,
+  rows: T[],
+  valuesForRow: (row: T) => unknown[]
+): Promise<void> {
+  const ids = rows.map((row) => row.id);
+  await client.query(`DELETE FROM ${table} WHERE NOT (id = ANY($1::text[]))`, [ids]);
+
+  for (const [position, row] of rows.entries()) {
+    const specificValues = valuesForRow(row);
+    const columns = table === "meeting_mind_meetings"
+      ? "id, position, meeting_date, status, payload"
+      : table === "meeting_mind_decisions"
+      ? "id, position, meeting_id, category, status, payload"
+      : table === "meeting_mind_tasks"
+      ? "id, position, associated_decision_id, status, due_date, payload"
+      : "id, position, source_decision_id, target_decision_id, resolved, payload";
+    const values = [row.id, position, ...specificValues, JSON.stringify(row)];
+    const parameterSlots = Array.from({ length: values.length }, (_, index) => `$${index + 1}`);
+    const mutableColumns = columns.split(", ").filter((column) => column !== "id");
+    const updates = mutableColumns.map((column) => `${column} = EXCLUDED.${column}`).join(", ");
+    await client.query(
+      `INSERT INTO ${table} (${columns}) VALUES (${parameterSlots.join(", ")})
+       ON CONFLICT (id) DO UPDATE SET ${updates}`,
+      values
+    );
+  }
+}
+
+async function persistEntityRows(client: PoolClient, database: MeetingMindDatabase): Promise<void> {
+  await synchronizeEntityRows(client, "meeting_mind_meetings", database.meetings || [], (meeting: MeetingSummary) => [meeting.date, meeting.status]);
+  await synchronizeEntityRows(client, "meeting_mind_decisions", database.decisions || [], (decision: Decision) => [decision.meetingId, decision.category, decision.status]);
+  await synchronizeEntityRows(client, "meeting_mind_tasks", database.tasks || [], (task: TaskItem) => [task.associatedDecisionId || null, task.status, task.dueDate]);
+  await synchronizeEntityRows(client, "meeting_mind_conflicts", database.conflicts || [], (conflict: ConflictRecord) => [conflict.sourceDecisionId, conflict.targetDecisionId, conflict.resolved]);
+}
+
+async function readPostgresState(client: PoolClient): Promise<MeetingMindDatabase> {
+  const metadata = await client.query<{ version: number; initialized_at: Date; last_updated: Date }>(
+    "SELECT version, initialized_at, last_updated FROM meeting_mind_metadata WHERE id = $1",
+    [STATE_ID]
+  );
+  const meetings = await client.query<{ payload: MeetingSummary }>("SELECT payload FROM meeting_mind_meetings ORDER BY position, id");
+  const decisions = await client.query<{ payload: Decision }>("SELECT payload FROM meeting_mind_decisions ORDER BY position, id");
+  const tasks = await client.query<{ payload: TaskItem }>("SELECT payload FROM meeting_mind_tasks ORDER BY position, id");
+  const conflicts = await client.query<{ payload: ConflictRecord }>("SELECT payload FROM meeting_mind_conflicts ORDER BY position, id");
+  const meta = metadata.rows[0];
+  if (!meta) throw new Error("Hosted database metadata row is missing.");
+  return {
+    meetings: meetings.rows.map((row) => row.payload),
+    decisions: decisions.rows.map((row) => row.payload),
+    tasks: tasks.rows.map((row) => row.payload),
+    conflicts: conflicts.rows.map((row) => row.payload),
+    meta: {
+      version: Number(meta.version),
+      initializedAt: new Date(meta.initialized_at).toISOString(),
+      lastUpdated: new Date(meta.last_updated).toISOString(),
+    },
+  };
 }
 
 function usePostgres(): boolean {
@@ -123,53 +271,67 @@ async function readFileDatabase(): Promise<MeetingMindDatabase> {
 }
 
 async function writeFileDatabase(data: MeetingMindDatabase): Promise<void> {
-  writeQueue = writeQueue.then(async () => {
-    await fs.mkdir(DB_DIR, { recursive: true });
-    data.meta.lastUpdated = new Date().toISOString();
-    await fs.writeFile(TMP_FILE, JSON.stringify(data, null, 2), "utf-8");
-    await fs.rename(TMP_FILE, DB_FILE);
-  });
-  await writeQueue;
+  await fs.mkdir(DB_DIR, { recursive: true });
+  data.meta.lastUpdated = new Date().toISOString();
+  const tempFile = path.join(DB_DIR, `meeting_mind_db.${randomUUID()}.tmp.json`);
+  try {
+    await fs.writeFile(tempFile, JSON.stringify(data, null, 2), { encoding: "utf-8", flag: "wx" });
+    await fs.rename(tempFile, DB_FILE);
+  } catch (error) {
+    await fs.rm(tempFile, { force: true }).catch(() => undefined);
+    throw error;
+  }
 }
 
 export async function readDatabase(): Promise<MeetingMindDatabase> {
   if (!usePostgres()) return readFileDatabase();
 
-  await ensurePostgresState();
-  const result = await getPool().query<{ state: MeetingMindDatabase }>(
-    "SELECT state FROM meeting_mind_state WHERE id = $1",
-    [STATE_ID]
-  );
-  if (!result.rows[0]) throw new Error("Hosted database state row is missing.");
-  return result.rows[0].state;
+  await ensurePostgresSchema();
+  const client = await getPool().connect();
+  try {
+    await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+    const database = await readPostgresState(client);
+    await client.query("COMMIT");
+    return database;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export async function mutateDatabase<T>(mutation: DatabaseMutation<T>): Promise<T> {
   if (!usePostgres()) {
-    const database = await readFileDatabase();
-    const result = await mutation(database);
-    database.meta.version += 1;
-    await writeFileDatabase(database);
+    let result!: T;
+    const operation = fileMutationQueue.then(async () => {
+      const database = await readFileDatabase();
+      result = await mutation(database);
+      database.meta.version += 1;
+      await writeFileDatabase(database);
+    });
+    // Keep the queue usable after a failed mutation while returning that failure to its caller.
+    fileMutationQueue = operation.then(() => undefined, () => undefined);
+    await operation;
     return result;
   }
 
-  await ensurePostgresState();
+  await ensurePostgresSchema();
   const client = await getPool().connect();
   try {
     await client.query("BEGIN");
-    const result = await client.query<{ state: MeetingMindDatabase }>(
-      "SELECT state FROM meeting_mind_state WHERE id = $1 FOR UPDATE",
+    await client.query(
+      "SELECT id FROM meeting_mind_metadata WHERE id = $1 FOR UPDATE",
       [STATE_ID]
     );
-    if (!result.rows[0]) throw new Error("Hosted database state row is missing.");
-
-    const database = result.rows[0].state;
+    const database = await readPostgresState(client);
     const value = await mutation(database);
     database.meta.version += 1;
     database.meta.lastUpdated = new Date().toISOString();
+    await persistEntityRows(client, database);
     await client.query(
-      "UPDATE meeting_mind_state SET state = $2::jsonb, updated_at = NOW() WHERE id = $1",
-      [STATE_ID, JSON.stringify(database)]
+      "UPDATE meeting_mind_metadata SET version = $2, last_updated = $3 WHERE id = $1",
+      [STATE_ID, database.meta.version, database.meta.lastUpdated]
     );
     await client.query("COMMIT");
     return value;

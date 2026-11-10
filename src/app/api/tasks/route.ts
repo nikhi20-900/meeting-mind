@@ -59,7 +59,7 @@ export async function PATCH(req: NextRequest) {
     console.error("[api/tasks] Failed to update task:", error);
     return NextResponse.json(
       { success: false, error: "UPDATE_FAILED", message: error.message },
-      { status: 500 }
+      { status: error.message?.includes("Resolve the linked decision conflict") ? 409 : 500 }
     );
   }
 }

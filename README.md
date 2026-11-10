@@ -173,17 +173,30 @@ Edit `.env.local`:
 GEMINI_API_KEY="your_gemini_api_key_here"
 ```
 
-Local development uses the sample JSON store by default. Hosted deployments must set `DATABASE_URL` to a PostgreSQL database (use the provider's pooled connection URL where applicable), `MEETING_MIND_ACCESS_KEY`, and a separate `MEETING_MIND_SESSION_SECRET`. Set `DATABASE_SSL=true` only when the provider requires TLS. Production fails closed when these settings are missing; it never falls back to a local file or open API access.
+For local PostgreSQL, start your PostgreSQL server and create a dedicated role and empty database. For example, in `psql` as a PostgreSQL administrator:
+
+```sql
+CREATE ROLE meeting_mind_local_app LOGIN PASSWORD 'replace-with-a-strong-local-password';
+CREATE DATABASE meeting_mind_local OWNER meeting_mind_local_app;
+```
+
+Add the local connection string to `.env.local`:
+
+```env
+DATABASE_URL="postgresql://meeting_mind_local_app:your-password@127.0.0.1:5432/meeting_mind_local"
+```
+
+Keep `.env.local` private; it is ignored by Git. Without `DATABASE_URL`, local development uses the JSON file store. That store is intended for one local development process and does not coordinate writes across multiple server processes. With `DATABASE_URL`, local development and hosted deployments use PostgreSQL tables for meetings, decisions, tasks, conflicts, and workspace metadata. Records keep a JSONB payload for flexible application fields, while commonly used relationships, statuses, and dates are stored in indexed columns. Existing deployments using the earlier single-row state table are migrated transactionally the first time the updated app connects. Deploy that migration as a coordinated cutover: stop old app instances before starting the version that migrates the database. For hosted deployments, set `DATABASE_URL` (use the provider's pooled connection URL where applicable), `MEETING_MIND_ACCESS_KEY`, and a separate `MEETING_MIND_SESSION_SECRET`. Set `DATABASE_SSL=true` only when the provider requires TLS. Production fails closed when these settings are missing; it never falls back to a local file or open API access.
 
 The editor key can read and update the workspace. Optionally set `MEETING_MIND_VIEW_KEY` for read-only access. These are shared workspace keys rather than individual accounts; this phase does not add SSO, per-person audit identity, or multiple isolated workspaces. Requests use signed, HTTP-only sessions, same-origin checks on changes, body size limits, and PostgreSQL-backed rate limits. Meeting extraction is limited to 10 requests per minute and 200 per day per signed session.
 
-To move an existing local store into a new, empty PostgreSQL store, set `DATABASE_URL` and run:
+To move an existing local JSON store into a new, empty PostgreSQL database, set `DATABASE_URL` and run this once:
 
 ```bash
 npm run db:import-json
 ```
 
-The importer stops if it finds existing records in PostgreSQL, so it will not overwrite an active store.
+The importer stops if it finds existing records in PostgreSQL, so it will not overwrite an active store. It leaves the original JSON file in place as a backup.
 
 ### Running Locally
 

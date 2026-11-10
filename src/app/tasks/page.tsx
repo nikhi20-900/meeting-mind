@@ -5,6 +5,8 @@ import { AppShell } from "@/components/layout/AppShell";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { TaskItem } from "@/types";
+import Link from "next/link";
+import { daysOverdue } from "@/lib/dateUtils";
 import { useWorkspaceRole } from "@/components/auth/WorkspaceAccessGate";
 import {
   CheckSquare,
@@ -23,6 +25,15 @@ import {
   AlertTriangle,
 } from "lucide-react";
 
+function isTaskOverdue(task: TaskItem, asOf: Date | null): boolean {
+  return Boolean(
+    asOf &&
+      task.status !== "Completed" &&
+      task.status !== "Rejected" &&
+      daysOverdue(task.dueDate, task.meetingDate, asOf) !== null
+  );
+}
+
 export default function TaskTrackerPage() {
   const workspaceRole = useWorkspaceRole();
   const [tasks, setTasks] = useState<TaskItem[]>([]);
@@ -31,9 +42,11 @@ export default function TaskTrackerPage() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [dueDateFilter, setDueDateFilter] = useState<"ALL" | "OVERDUE">("ALL");
   const [priorityFilter, setPriorityFilter] = useState<string>("ALL");
   const [actionInProgressId, setActionInProgressId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [today, setToday] = useState<Date | null>(null);
 
   const [toastMessage, setToastMessage] = useState<{
     text: string;
@@ -63,6 +76,7 @@ export default function TaskTrackerPage() {
   };
 
   useEffect(() => {
+    setToday(new Date());
     fetchTasks();
   }, []);
 
@@ -181,6 +195,7 @@ export default function TaskTrackerPage() {
   const handleResetFilters = () => {
     setSearchQuery("");
     setStatusFilter("ALL");
+    setDueDateFilter("ALL");
     setPriorityFilter("ALL");
   };
 
@@ -199,21 +214,26 @@ export default function TaskTrackerPage() {
       const matchesStatus =
         statusFilter === "ALL" || task.status === statusFilter;
 
+      const matchesDueDate =
+        dueDateFilter === "ALL" || isTaskOverdue(task, today);
+
       const matchesPriority =
         priorityFilter === "ALL" || task.priority === priorityFilter;
 
-      return matchesSearch && matchesStatus && matchesPriority;
+      return matchesSearch && matchesStatus && matchesDueDate && matchesPriority;
     });
-  }, [tasks, searchQuery, statusFilter, priorityFilter]);
+  }, [tasks, searchQuery, statusFilter, dueDateFilter, priorityFilter, today]);
 
   const hasActiveFilters =
     searchQuery.trim() !== "" ||
     statusFilter !== "ALL" ||
+    dueDateFilter !== "ALL" ||
     priorityFilter !== "ALL";
 
   const awaitingApprovalCount = tasks.filter(
     (t) => t.status === "Awaiting Approval"
   ).length;
+  const overdueTasksCount = tasks.filter((task) => isTaskOverdue(task, today)).length;
 
   return (
     <AppShell>
@@ -227,6 +247,12 @@ export default function TaskTrackerPage() {
           <div className="rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm text-stone-700">
             <span className="font-semibold text-stone-950">{awaitingApprovalCount}</span> need your review
           </div>
+          {overdueTasksCount > 0 && (
+            <div role="status" className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
+              <Clock className="h-4 w-4 shrink-0 text-rose-700" />
+              <span><strong>{overdueTasksCount}</strong> {overdueTasksCount === 1 ? "open task is" : "open tasks are"} overdue</span>
+            </div>
+          )}
         </div>
 
         {actionError && (
@@ -371,6 +397,43 @@ export default function TaskTrackerPage() {
                 </div>
               </div>
 
+              {/* Due Date Filter */}
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
+                <span className="text-xs font-semibold text-stone-600 flex items-center gap-1.5 shrink-0">
+                  <Calendar className="w-3.5 h-3.5 text-stone-500" />
+                  Due date
+                </span>
+                <div role="group" aria-label="Filter tasks by due date" className="flex flex-wrap items-center gap-1.5">
+                  {[
+                    { id: "ALL" as const, label: "Any due date", count: tasks.length },
+                    { id: "OVERDUE" as const, label: "Overdue", count: overdueTasksCount },
+                  ].map((option) => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      aria-pressed={dueDateFilter === option.id}
+                      onClick={() => setDueDateFilter(option.id)}
+                      className={`px-3 py-1 text-xs font-medium rounded-lg border transition-colors flex items-center gap-1.5 ${
+                        dueDateFilter === option.id
+                          ? "bg-stone-900 text-white border-stone-900"
+                          : "bg-white text-stone-600 border-stone-200 hover:bg-stone-50"
+                      }`}
+                    >
+                      <span>{option.label}</span>
+                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                        dueDateFilter === option.id
+                          ? "bg-stone-800 text-stone-200"
+                          : option.id === "OVERDUE" && option.count > 0
+                          ? "bg-rose-100 text-rose-800 font-semibold"
+                          : "bg-stone-100 text-stone-500"
+                      }`}>
+                        {option.count}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Priority Filter Chips */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-2 border-t border-stone-100/80">
                 <span className="text-xs font-semibold text-stone-600 flex items-center gap-1.5 shrink-0">
@@ -446,7 +509,7 @@ export default function TaskTrackerPage() {
             title="No matching tasks"
             description={
               hasActiveFilters
-                ? `No tasks found for query "${searchQuery}" with status "${statusFilter}" and priority "${priorityFilter}".`
+                ? "No tasks match these filters. Try clearing one or more filters."
                 : "No tasks yet. Add a meeting recap to capture suggested tasks."
             }
             actionLabel={hasActiveFilters ? "Clear All Filters" : undefined}
@@ -456,7 +519,11 @@ export default function TaskTrackerPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
             {filteredTasks.map((task) => {
               const isAwaiting = task.status === "Awaiting Approval";
+              const isConflictHeld = Boolean(task.linkedConflictId);
               const isActionRunning = actionInProgressId === task.id;
+              const overdueBy = isTaskOverdue(task, today)
+                ? daysOverdue(task.dueDate, task.meetingDate, today!)
+                : null;
 
               return (
                 <div
@@ -549,6 +616,11 @@ export default function TaskTrackerPage() {
                           <Calendar className="w-3.5 h-3.5 text-stone-400" />
                           {task.dueDate}
                         </span>
+                        {overdueBy && (
+                          <span className="mt-1 block text-[10px] font-semibold text-rose-800">
+                            Overdue by {overdueBy} {overdueBy === 1 ? "day" : "days"}
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -569,6 +641,21 @@ export default function TaskTrackerPage() {
                           </div>
                         </div>
                       )}
+                      {task.evidence && task.evidence !== "Unknown" && (
+                        <div className="rounded-lg border border-stone-100 bg-white p-2.5 text-xs text-stone-600">
+                          <span className="font-medium text-stone-700">Evidence from recap: </span>
+                          “{task.evidence}”
+                        </div>
+                      )}
+                      {isConflictHeld && (
+                        <div role="note" className="flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 p-2.5 text-xs text-rose-900">
+                          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-700" />
+                          <div>
+                            <p className="font-semibold">On hold while the linked decision conflict is unresolved.</p>
+                            <Link href="/decision-memory" className="mt-1 inline-block font-medium underline underline-offset-2 hover:text-rose-950">Review decision conflict</Link>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -576,7 +663,7 @@ export default function TaskTrackerPage() {
                   {isAwaiting && workspaceRole === "editor" ? (
                     <div className="mt-4 pt-3.5 border-t border-amber-200/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="text-xs text-amber-800 font-medium">
-                        Review this suggested task before confirming it:
+                        {isConflictHeld ? "You can decline this task; confirmation is held until its decision conflict is resolved." : "Review this suggested task before confirming it:"}
                       </div>
 
                       <div className="flex items-center gap-2 self-end sm:self-auto">
@@ -592,7 +679,7 @@ export default function TaskTrackerPage() {
                           Reject
                         </button>
 
-                        <button
+                        {!isConflictHeld && <button
                           type="button"
                           aria-busy={isActionRunning}
                           onClick={() => handleConfirmTask(task.id)}
@@ -606,7 +693,7 @@ export default function TaskTrackerPage() {
                             <CheckCircle2 className="w-3.5 h-3.5" />
                           )}
                           Confirm task
-                        </button>
+                        </button>}
                       </div>
                     </div>
                   ) : (

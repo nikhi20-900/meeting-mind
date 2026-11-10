@@ -17,6 +17,7 @@ export interface ExtractedDecision {
   status: DecisionStatus;
   speakerAttribution: string;
   confidenceScore?: number;
+  evidence?: string;
 }
 
 export interface ExtractedActionItem {
@@ -27,6 +28,7 @@ export interface ExtractedActionItem {
   deadline: string;
   priority: TaskPriority;
   speakerAttribution: string;
+  evidence?: string;
   requiresConfirmation: boolean;
 }
 

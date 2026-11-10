@@ -41,6 +41,7 @@ export async function POST(req: NextRequest) {
       meetingDate,
       provider: typeof extraction.metadata?.provider === "string" ? extraction.metadata.provider : "Unknown",
       model: typeof extraction.metadata?.model === "string" ? extraction.metadata.model : "unknown",
+      recapText,
     });
 
     const savedData = await saveExtractedMeetingData({

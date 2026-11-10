@@ -21,9 +21,16 @@ function knownText(value: unknown): string {
   return typeof value === "string" && value.trim() ? value.trim() : "Unknown";
 }
 
+function supportedEvidence(value: unknown, recapText?: string): string {
+  const evidence = knownText(value);
+  if (evidence === "Unknown" || !recapText) return evidence;
+  const normalizeWhitespace = (text: string) => text.trim().replace(/\s+/g, " ");
+  return normalizeWhitespace(recapText).includes(normalizeWhitespace(evidence)) ? evidence : "Unknown";
+}
+
 export function validateExtractionResult(
   raw: any,
-  context: { title: string; meetingDate: string; provider: string; model: string }
+  context: { title: string; meetingDate: string; provider: string; model: string; recapText?: string }
 ): MeetingExtractionResult {
   if (!raw || typeof raw !== "object") {
     throw new Error("Model output is not a valid JSON object");
@@ -95,6 +102,7 @@ export function validateExtractionResult(
           ? `Proposed by ${item.proposedBy.trim()}`
           : "Unknown",
       confidenceScore,
+      evidence: supportedEvidence(item.evidence, context.recapText),
     };
   });
 
@@ -138,6 +146,7 @@ export function validateExtractionResult(
         typeof item.speakerAttribution === "string" && item.speakerAttribution.trim()
           ? item.speakerAttribution.trim()
           : "Unknown",
+      evidence: supportedEvidence(item.evidence, context.recapText),
       requiresConfirmation: true, // Meeting Mind principle: always requires confirmation
     };
   });

@@ -19,6 +19,7 @@ export interface Decision {
   confidenceScore?: number;
   decisionText: string;
   rationale: string;
+  evidence?: string;
   hasConflictWarning?: boolean;
   conflictRecordId?: string;
   conflictNotes?: string;
@@ -40,11 +41,14 @@ export interface TaskItem {
     email?: string;
   };
   dueDate: string;
+  meetingDate?: string;
   priority: TaskPriority;
   status: TaskStatus;
   associatedMeeting: string;
   associatedDecisionId?: string;
   associatedDecisionText?: string;
+  linkedConflictId?: string;
+  evidence?: string;
   requiresUserConfirmation: boolean;
 }
 
