@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { Decision, DecisionStatus } from "@/types";
+import Link from "next/link";
+import { Decision } from "@/types";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { DecisionImpactPanel } from "@/components/conflicts/DecisionImpactPanel";
@@ -248,6 +249,7 @@ export function DecisionList({ initialDecisions }: { initialDecisions: Decision[
         <div className="space-y-3.5">
           {filteredDecisions.map((decision) => (
             <div
+              id={`decision-${decision.id}`}
               key={decision.id}
               className={`p-5 sm:p-6 bg-white rounded-2xl border transition-all duration-150 ${
                 decision.hasConflictWarning
@@ -298,10 +300,19 @@ export function DecisionList({ initialDecisions }: { initialDecisions: Decision[
                   <div className="flex items-center gap-1.5 text-xs text-stone-500">
                     <FileText className="w-3.5 h-3.5 text-stone-400 shrink-0" />
                     <span>Meeting:</span>
-                    <span className="font-medium text-stone-800">
-                      {decision.meetingReference}
-                    </span>
+                    {decision.meetingId ? (
+                      <Link href={`/meetings/${encodeURIComponent(decision.meetingId)}`} className="font-medium text-stone-800 hover:text-orange-900 hover:underline underline-offset-2">
+                        {decision.meetingReference}
+                      </Link>
+                    ) : (
+                      <span className="font-medium text-stone-800">{decision.meetingReference}</span>
+                    )}
                   </div>
+                  {decision.meetingId && decision.conflictRecordId && (
+                    <Link href={`/meetings/${encodeURIComponent(decision.meetingId)}#conflict-${encodeURIComponent(decision.conflictRecordId)}`} className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-rose-800 hover:text-rose-950 hover:underline underline-offset-2">
+                      <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />Open related conflict
+                    </Link>
+                  )}
                 </div>
 
                 {/* ID Tag */}

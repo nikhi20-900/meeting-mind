@@ -527,6 +527,7 @@ export default function TaskTrackerPageClient() {
 
               return (
                 <div
+                  id={`task-${task.id}`}
                   key={task.id}
                   className={`p-5 sm:p-6 bg-white rounded-2xl border transition-all duration-150 flex flex-col justify-between ${
                     isAwaiting
@@ -629,7 +630,13 @@ export default function TaskTrackerPageClient() {
                       <div className="flex items-center gap-1.5 text-stone-600">
                         <FileText className="w-3.5 h-3.5 text-stone-400 shrink-0" />
                         <span className="font-medium text-stone-700">Associated Meeting:</span>
-                        <span className="text-stone-800 truncate">{task.associatedMeeting}</span>
+                        {task.associatedMeetingId ? (
+                          <Link href={`/meetings/${encodeURIComponent(task.associatedMeetingId)}`} className="truncate font-medium text-stone-800 hover:text-orange-900 hover:underline underline-offset-2">
+                            {task.associatedMeeting}
+                          </Link>
+                        ) : (
+                          <span className="text-stone-800 truncate">{task.associatedMeeting}</span>
+                        )}
                       </div>
 
                       {task.associatedDecisionText && (
@@ -637,7 +644,13 @@ export default function TaskTrackerPageClient() {
                           <Gavel className="w-3.5 h-3.5 text-stone-400 shrink-0 mt-0.5" />
                           <div>
                             <span className="font-medium text-stone-700">Linked Decision: </span>
-                            <span className="text-stone-600">{task.associatedDecisionText}</span>
+                            {task.associatedDecisionId ? (
+                              <Link href={`/decision-memory#decision-${encodeURIComponent(task.associatedDecisionId)}`} className="text-stone-600 hover:text-orange-900 hover:underline underline-offset-2">
+                                {task.associatedDecisionText}
+                              </Link>
+                            ) : (
+                              <span className="text-stone-600">{task.associatedDecisionText}</span>
+                            )}
                           </div>
                         </div>
                       )}
@@ -652,7 +665,7 @@ export default function TaskTrackerPageClient() {
                           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-700" />
                           <div>
                             <p className="font-semibold">On hold while the linked decision conflict is unresolved.</p>
-                            <Link href="/decision-memory" className="mt-1 inline-block font-medium underline underline-offset-2 hover:text-rose-950">Review decision conflict</Link>
+                            <Link href={task.associatedMeetingId ? `/meetings/${encodeURIComponent(task.associatedMeetingId)}#conflict-${encodeURIComponent(task.linkedConflictId!)}` : "/decision-memory"} className="mt-1 inline-block font-medium underline underline-offset-2 hover:text-rose-950">Review decision conflict</Link>
                           </div>
                         </div>
                       )}

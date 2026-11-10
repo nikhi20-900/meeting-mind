@@ -14,11 +14,21 @@ export interface ConflictRecord {
   dependentSettingsNote?: string;
 }
 
+export interface MeetingTemplate {
+  id: string;
+  name: string;
+  title: string;
+  recapText: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface MeetingMindDatabase {
   meetings: MeetingSummary[];
   decisions: Decision[];
   tasks: TaskItem[];
   conflicts: ConflictRecord[];
+  templates: MeetingTemplate[];
   meta: {
     version: number;
     lastUpdated: string;

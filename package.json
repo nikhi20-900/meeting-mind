@@ -7,7 +7,7 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
-    "test": "node tests/conflict-audit.test.mjs && node tests/site-audit.test.mjs",
+    "test": "node tests/conflict-audit.test.mjs && node tests/site-audit.test.mjs && node tests/duplicate-review.test.mjs",
     "db:import-json": "node scripts/import-json-to-postgres.mjs"
   },
   "dependencies": {

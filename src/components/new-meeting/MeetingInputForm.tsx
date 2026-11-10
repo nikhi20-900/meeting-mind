@@ -1,18 +1,29 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import Link from "next/link";
 import {
   Mic,
   AlertCircle,
   FileText,
   RotateCcw,
   AlertTriangle,
+  Plus,
+  Save,
+  Trash2,
+  X,
 } from "lucide-react";
 import { sampleRecapTemplates } from "@/data/mockData";
 import { ExtractApiResponse, MeetingExtractionResult } from "@/types/extraction";
 import { ExtractionResultView } from "./ExtractionResultView";
 import { ApiKeySetupNotice } from "./ApiKeySetupNotice";
+import { useWorkspaceRole } from "@/components/auth/WorkspaceAccessGate";
+
+interface SavedMeetingTemplate {
+  id: string;
+  name: string;
+  title: string;
+  recapText: string;
+}
 
 function localDateValue() {
   const now = new Date();
@@ -20,6 +31,7 @@ function localDateValue() {
 }
 
 export function MeetingInputForm() {
+  const workspaceRole = useWorkspaceRole();
   const [title, setTitle] = useState("");
   const [meetingDate, setMeetingDate] = useState("");
   const [recapText, setRecapText] = useState("");
@@ -35,9 +47,25 @@ export function MeetingInputForm() {
   } | null>(null);
 
   const [extractionResponse, setExtractionResponse] = useState<ExtractApiResponse | null>(null);
+  const [savedTemplates, setSavedTemplates] = useState<SavedMeetingTemplate[]>([]);
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false);
+  const [templateName, setTemplateName] = useState("");
+  const [templateTitle, setTemplateTitle] = useState("");
+  const [templateRecap, setTemplateRecap] = useState("");
+  const [templateError, setTemplateError] = useState("");
+  const [isSavingTemplate, setIsSavingTemplate] = useState(false);
+  const [deletingTemplateId, setDeletingTemplateId] = useState("");
 
   useEffect(() => {
-    setMeetingDate(localDateValue());
+    const dateFrame = window.requestAnimationFrame(() => setMeetingDate(localDateValue()));
+    fetch("/api/meeting-templates", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) return;
+        const data = await response.json();
+        if (data.success && Array.isArray(data.templates)) setSavedTemplates(data.templates);
+      })
+      .catch(() => undefined);
+    return () => window.cancelAnimationFrame(dateFrame);
   }, []);
 
   const handleLoadTemplate = (index: number) => {
@@ -49,6 +77,63 @@ export function MeetingInputForm() {
       setErrors({});
       setApiError(null);
       setExtractionResponse(null);
+    }
+  };
+
+  const handleLoadSavedTemplate = (template: SavedMeetingTemplate) => {
+    setTitle(template.title);
+    setRecapText(template.recapText);
+    setErrors({});
+    setApiError(null);
+    setExtractionResponse(null);
+  };
+
+  const openSaveTemplate = () => {
+    setTemplateName(title.trim() ? `${title.trim()} format` : "");
+    setTemplateTitle(title);
+    setTemplateRecap(recapText);
+    setTemplateError("");
+    setShowSaveTemplate(true);
+  };
+
+  const saveTemplate = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setIsSavingTemplate(true);
+    setTemplateError("");
+    try {
+      const response = await fetch("/api/meeting-templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: templateName, title: templateTitle, recapText: templateRecap }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.message || "Template could not be saved.");
+      setSavedTemplates((current) => [data.template, ...current]);
+      setShowSaveTemplate(false);
+    } catch (error) {
+      setTemplateError(error instanceof Error ? error.message : "Template could not be saved.");
+    } finally {
+      setIsSavingTemplate(false);
+    }
+  };
+
+  const removeTemplate = async (template: SavedMeetingTemplate) => {
+    if (!window.confirm(`Remove “${template.name}” from this workspace?`)) return;
+    setDeletingTemplateId(template.id);
+    setTemplateError("");
+    try {
+      const response = await fetch("/api/meeting-templates", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: template.id }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.message || "Template could not be removed.");
+      setSavedTemplates((current) => current.filter((item) => item.id !== template.id));
+    } catch (error) {
+      setTemplateError(error instanceof Error ? error.message : "Template could not be removed.");
+    } finally {
+      setDeletingTemplateId("");
     }
   };
 
@@ -114,10 +199,10 @@ export function MeetingInputForm() {
         setExtractionResponse(data);
         setApiError(null);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setApiError({
         code: "NETWORK_ERROR",
-        message: err.message || "Failed to connect to extraction API route.",
+        message: err instanceof Error ? err.message : "Failed to connect to extraction API route.",
       });
       setExtractionResponse(null);
     } finally {
@@ -146,8 +231,8 @@ export function MeetingInputForm() {
         throw new Error(data.success === false ? data.message : "Could not save this meeting.");
       }
       setExtractionResponse(data);
-    } catch (err: any) {
-      setApiError({ code: "SAVE_FAILED", message: err.message || "Could not save this meeting. Your review is still here." });
+    } catch (err: unknown) {
+      setApiError({ code: "SAVE_FAILED", message: err instanceof Error ? err.message : "Could not save this meeting. Your review is still here." });
     } finally {
       setIsSaving(false);
     }
@@ -206,6 +291,76 @@ export function MeetingInputForm() {
           )}
         </div>
       </div>
+
+      {(savedTemplates.length > 0 || workspaceRole === "editor") && (
+        <section aria-label="Saved meeting templates" className="rounded-2xl border border-stone-200 bg-white p-4 shadow-2xs">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-stone-900">Your workspace templates</h2>
+              <p className="mt-0.5 text-xs text-stone-500">Reuse a team format for the next meeting.</p>
+            </div>
+            {workspaceRole === "editor" && (
+              <button type="button" onClick={openSaveTemplate} disabled={!recapText.trim()} title={!recapText.trim() ? "Add a recap format first" : undefined}
+                className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-stone-300 px-3 py-2 text-xs font-medium text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50">
+                <Plus className="h-3.5 w-3.5" /> Save current format
+              </button>
+            )}
+          </div>
+          {savedTemplates.length > 0 ? (
+            <ul className="mt-3 flex flex-wrap gap-2">
+              {savedTemplates.map((template) => (
+                <li key={template.id} className="inline-flex max-w-full items-center overflow-hidden rounded-lg border border-stone-200 bg-stone-50">
+                  <button type="button" onClick={() => handleLoadSavedTemplate(template)} title={`Use ${template.name}`}
+                    className="max-w-[15rem] truncate px-3 py-2 text-left text-xs font-medium text-stone-800 hover:bg-stone-100">
+                    {template.name}
+                  </button>
+                  {workspaceRole === "editor" && (
+                    <button type="button" onClick={() => removeTemplate(template)} disabled={deletingTemplateId === template.id}
+                      aria-label={`Remove ${template.name}`} title={`Remove ${template.name}`}
+                      className="border-l border-stone-200 p-2 text-stone-500 hover:bg-white hover:text-rose-700 disabled:opacity-50">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          ) : <p className="mt-3 text-xs text-stone-500">No saved formats yet. Add a recap structure, then save it for the team.</p>}
+          {templateError && <p role="alert" className="mt-3 text-xs text-rose-700">{templateError}</p>}
+        </section>
+      )}
+
+      {showSaveTemplate && (
+        <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-stone-950/35 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowSaveTemplate(false); }}>
+          <section role="dialog" aria-modal="true" aria-labelledby="save-template-heading" className="my-auto w-full max-w-2xl rounded-2xl border border-stone-200 bg-white p-5 shadow-xl sm:p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 id="save-template-heading" className="text-lg font-semibold tracking-tight text-stone-900">Save a team format</h2>
+                <p className="mt-1 text-sm leading-5 text-stone-600">Review the reusable title and recap below. This text will be shared with the workspace.</p>
+              </div>
+              <button type="button" onClick={() => setShowSaveTemplate(false)} aria-label="Close" className="rounded-lg p-2 text-stone-500 hover:bg-stone-100"><X className="h-4 w-4" /></button>
+            </div>
+            <form onSubmit={saveTemplate} className="mt-5 space-y-4">
+              <label className="block space-y-1.5 text-sm font-medium text-stone-800" htmlFor="template-name">
+                Template name
+                <input id="template-name" required maxLength={80} value={templateName} onChange={(event) => setTemplateName(event.target.value)} placeholder="e.g. Weekly project check-in" className="w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-sm font-normal outline-none focus:border-stone-500 focus:ring-2 focus:ring-stone-200" />
+              </label>
+              <label className="block space-y-1.5 text-sm font-medium text-stone-800" htmlFor="template-title">
+                Default meeting title
+                <input id="template-title" maxLength={160} value={templateTitle} onChange={(event) => setTemplateTitle(event.target.value)} placeholder="e.g. Weekly project check-in" className="w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-sm font-normal outline-none focus:border-stone-500 focus:ring-2 focus:ring-stone-200" />
+              </label>
+              <label className="block space-y-1.5 text-sm font-medium text-stone-800" htmlFor="template-recap">
+                Reusable recap format
+                <textarea id="template-recap" required maxLength={10000} rows={8} value={templateRecap} onChange={(event) => setTemplateRecap(event.target.value)} className="w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-sm font-normal leading-6 outline-none focus:border-stone-500 focus:ring-2 focus:ring-stone-200" />
+              </label>
+              {templateError && <p role="alert" className="text-sm text-rose-700">{templateError}</p>}
+              <div className="flex justify-end gap-2 border-t border-stone-100 pt-4">
+                <button type="button" onClick={() => setShowSaveTemplate(false)} className="rounded-xl border border-stone-300 px-4 py-2.5 text-sm font-medium text-stone-700 hover:bg-stone-50">Cancel</button>
+                <button type="submit" disabled={isSavingTemplate || !templateName.trim() || !templateRecap.trim()} className="inline-flex items-center gap-2 rounded-xl bg-stone-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-stone-700 disabled:cursor-not-allowed disabled:opacity-50"><Save className="h-4 w-4" />{isSavingTemplate ? "Saving…" : "Save template"}</button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
 
       {/* Main Input Form */}
       <form onSubmit={handleProcessMeeting} className="bg-white rounded-2xl border border-stone-200/90 shadow-2xs p-5 sm:p-7 space-y-6">

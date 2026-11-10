@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mutateDatabase, readDatabase } from "./store";
 import { Decision, MeetingSummary, TaskItem, DashboardStats, TaskStatus } from "@/types";
 import { MeetingExtractionResult } from "@/types/extraction";
-import { ConflictRecord } from "./types";
+import { ConflictRecord, MeetingTemplate } from "./types";
 import { detectConflicts, DetectedConflict } from "@/lib/conflictDetection";
 import { findTaskDecisionAssociation } from "@/lib/taskDecisionAssociation";
 
@@ -21,6 +21,31 @@ function isOpenTask(task: TaskItem): boolean {
   return task.status !== "Completed" && task.status !== "Rejected";
 }
 
+function normalizeMeetingLabel(value: string | undefined): string {
+  return (value || "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function normalizeMeetingDate(value: string | undefined): string | null {
+  if (!value || /^(unknown|not specified|unspecified)$/i.test(value.trim())) return null;
+  const isoDate = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoDate) return `${isoDate[1]}-${isoDate[2]}-${isoDate[3]}`;
+  const textualDate = value.trim().match(/^([A-Za-z]{3,9})\s+(\d{1,2}),?\s+(\d{4})$/);
+  if (textualDate) {
+    const months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+    const month = months.indexOf(textualDate[1].slice(0, 3).toLowerCase());
+    const date = new Date(Date.UTC(Number(textualDate[3]), month, Number(textualDate[2])));
+    if (month < 0 || date.getUTCMonth() !== month || date.getUTCDate() !== Number(textualDate[2])) return null;
+    return `${textualDate[3]}-${String(month + 1).padStart(2, "0")}-${String(Number(textualDate[2])).padStart(2, "0")}`;
+  }
+  return null;
+}
+
+function withoutMeetingRecap(meeting: MeetingSummary): MeetingSummary {
+  const summary = { ...meeting };
+  delete summary.recapText;
+  return summary;
+}
+
 export async function getDashboardOverview(): Promise<{
   stats: DashboardStats;
   recentMeetings: MeetingSummary[];
@@ -35,16 +60,18 @@ export async function getDashboardOverview(): Promise<{
   const last7DaysStart = todayStart - 6 * dayMs;
   const prior7DaysStart = todayStart - 13 * dayMs;
 
-  const activeTasks = db.tasks.filter(isOpenTask);
+  const activeTasks = db.tasks.filter((task) => !task.duplicateOfId && isOpenTask(task));
+  const activeMeetings = db.meetings.filter((meeting) => !meeting.duplicateOfId);
+  const activeDecisions = db.decisions.filter((decision) => !decision.duplicateOfId);
   const datedActiveTasks = activeTasks
     .map((task) => ({ task, due: dateStartUTC(task.dueDate) }))
     .filter((entry): entry is { task: TaskItem; due: number } => entry.due !== null);
 
-  const meetingsLast7Days = db.meetings.filter((meeting) => {
+  const meetingsLast7Days = activeMeetings.filter((meeting) => {
     const date = dateStartUTC(meeting.date);
     return date !== null && date >= last7DaysStart && date <= todayStart;
   }).length;
-  const meetingsPrior7Days = db.meetings.filter((meeting) => {
+  const meetingsPrior7Days = activeMeetings.filter((meeting) => {
     const date = dateStartUTC(meeting.date);
     return date !== null && date >= prior7DaysStart && date < last7DaysStart;
   }).length;
@@ -57,7 +84,7 @@ export async function getDashboardOverview(): Promise<{
   const unresolvedConflictsCount = db.conflicts.filter((conflict) => !conflict.resolved).length;
 
   const stats: DashboardStats = {
-    meetingsProcessed: db.meetings.length,
+    meetingsProcessed: activeMeetings.length,
     meetingsThisWeekDelta: weeklyTrend,
     pendingTasks: activeTasks.length,
     pendingTasksConfirmationCount: activeTasks.filter(
@@ -90,37 +117,103 @@ export async function getDashboardOverview(): Promise<{
 
   return {
     stats,
-    recentMeetings: db.meetings.slice().sort(sortByRecentDate).slice(0, 5),
+    recentMeetings: activeMeetings.slice().sort(sortByRecentDate).slice(0, 5).map(withoutMeetingRecap),
     upcomingTasks,
-    recentDecisions: db.decisions.slice().sort(sortByRecentDate).slice(0, 6),
+    recentDecisions: activeDecisions.slice().sort(sortByRecentDate).slice(0, 6),
     conflicts: db.conflicts,
   };
 }
 
 export async function getAllMeetings(): Promise<MeetingSummary[]> {
   const db = await readDatabase();
-  return db.meetings;
+  return db.meetings.filter((meeting) => !meeting.duplicateOfId);
+}
+
+export async function getMeetingTemplates(): Promise<MeetingTemplate[]> {
+  const db = await readDatabase();
+  return db.templates || [];
+}
+
+export async function createMeetingTemplate(input: { name: string; title: string; recapText: string }): Promise<MeetingTemplate> {
+  return mutateDatabase((db) => {
+    if ((db.templates || []).some((template) => template.name.toLocaleLowerCase() === input.name.toLocaleLowerCase())) {
+      throw new Error("A template with this name already exists.");
+    }
+    const now = new Date().toISOString();
+    const template: MeetingTemplate = { id: `tpl-${randomUUID()}`, ...input, createdAt: now, updatedAt: now };
+    db.templates ||= [];
+    db.templates.unshift(template);
+    return template;
+  });
+}
+
+export async function deleteMeetingTemplate(templateId: string): Promise<boolean> {
+  return mutateDatabase((db) => {
+    const templates = db.templates || [];
+    const next = templates.filter((template) => template.id !== templateId);
+    if (next.length === templates.length) return false;
+    db.templates = next;
+    return true;
+  });
 }
 
 export async function getAllDecisions(): Promise<Decision[]> {
   const db = await readDatabase();
-  return db.decisions;
+  return db.decisions.filter((decision) => !decision.duplicateOfId);
 }
 
 export async function getAllTasks(): Promise<TaskItem[]> {
   const db = await readDatabase();
-  return db.tasks.map((task) => {
-    if (!task.linkedConflictId) return task;
+  const activeMeetings = db.meetings.filter((meeting) => !meeting.duplicateOfId);
+  return db.tasks.filter((task) => !task.duplicateOfId).map((task) => {
+    const meeting = activeMeetings.find((item) => item.id === task.associatedMeetingId) || activeMeetings.find((item) =>
+          normalizeMeetingLabel(item.title) === normalizeMeetingLabel(task.associatedMeeting) &&
+          normalizeMeetingDate(item.date) !== null && normalizeMeetingDate(item.date) === normalizeMeetingDate(task.meetingDate)
+        );
+    const withMeeting = meeting ? { ...task, associatedMeetingId: meeting.id } : task;
+    if (!withMeeting.linkedConflictId) return withMeeting;
     const unresolved = db.conflicts.some(
-      (conflict) => conflict.id === task.linkedConflictId && !conflict.resolved
+      (conflict) => conflict.id === withMeeting.linkedConflictId && !conflict.resolved
     );
-    return unresolved ? task : { ...task, linkedConflictId: undefined };
+    return unresolved ? withMeeting : { ...withMeeting, linkedConflictId: undefined };
   });
 }
 
 export async function getAllConflicts(): Promise<ConflictRecord[]> {
   const db = await readDatabase();
   return db.conflicts;
+}
+
+export async function getMeetingDetail(meetingId: string): Promise<{
+  meeting: MeetingSummary;
+  decisions: Decision[];
+  tasks: TaskItem[];
+  conflicts: ConflictRecord[];
+} | null> {
+  const db = await readDatabase();
+  const meeting = db.meetings.find((item) => item.id === meetingId && !item.duplicateOfId);
+  if (!meeting) return null;
+
+  const meetingTitle = normalizeMeetingLabel(meeting.title);
+  const meetingDate = normalizeMeetingDate(meeting.date);
+  const decisions = db.decisions.filter((decision) => {
+    if (decision.duplicateOfId) return false;
+    if (decision.meetingId && decision.meetingId === meeting.id) return true;
+    return normalizeMeetingLabel(decision.meetingReference) === meetingTitle &&
+      meetingDate !== null && normalizeMeetingDate(decision.date) === meetingDate;
+  });
+  const decisionIds = new Set(decisions.map((decision) => decision.id));
+  const tasks = db.tasks.filter((task) => {
+    if (task.duplicateOfId) return false;
+    if (task.associatedMeetingId === meeting.id) return true;
+    if (task.associatedDecisionId && decisionIds.has(task.associatedDecisionId)) return true;
+    return normalizeMeetingLabel(task.associatedMeeting) === meetingTitle &&
+      meetingDate !== null && normalizeMeetingDate(task.meetingDate) === meetingDate;
+  });
+  const conflicts = db.conflicts.filter((conflict) =>
+    decisionIds.has(conflict.sourceDecisionId) || decisionIds.has(conflict.targetDecisionId)
+  );
+  return { meeting, decisions, tasks, conflicts };
 }
 
 export async function updateTaskStatus(
@@ -223,7 +316,7 @@ export async function saveExtractedMeetingData(params: {
 }> {
   const { title, extraction } = params;
   const snapshot = await readDatabase();
-  const snapshotConflicts = await detectConflicts(extraction.decisions, snapshot.decisions, title);
+  const snapshotConflicts = await detectConflicts(extraction.decisions, snapshot.decisions.filter((decision) => !decision.duplicateOfId), title);
 
   return mutateDatabase(async (db) => {
     const { meetingDate, attendees } = params;
@@ -235,7 +328,7 @@ export async function saveExtractedMeetingData(params: {
     const conflictsDetected =
       db.meta.version === snapshot.meta.version
         ? snapshotConflicts
-        : await detectConflicts(extraction.decisions, db.decisions, title);
+        : await detectConflicts(extraction.decisions, db.decisions.filter((decision) => !decision.duplicateOfId), title);
 
     // 3. Save decisions with stable persisted IDs and their review status.
     const persistedDecisionIds = new Map<string, string>();
@@ -282,6 +375,7 @@ export async function saveExtractedMeetingData(params: {
       const ownerName = action.ownerName || "Unknown";
       return {
         id: `tsk-${randomUUID()}`,
+        associatedMeetingId: meetingId,
         title: action.title,
         owner: {
           name: ownerName,
@@ -316,6 +410,7 @@ export async function saveExtractedMeetingData(params: {
       tasksCount: savedTasks.length,
       conflictsDetected: conflictsDetected.length,
       snippet: extraction.summary.executiveSummary.slice(0, 200),
+      recapText: params.recapText,
     };
 
     const newConflictRecords: ConflictRecord[] = conflictsDetected.map((conflict) => ({

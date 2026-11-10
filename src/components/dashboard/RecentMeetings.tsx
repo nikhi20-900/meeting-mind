@@ -23,9 +23,9 @@ export function RecentMeetings({ meetings }: { meetings: MeetingSummary[] }) {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2 mb-1.5">
-                <span className="font-semibold text-stone-900 group-hover:text-orange-950 transition-colors text-sm sm:text-base">
+                <Link href={`/meetings/${encodeURIComponent(meeting.id)}`} className="font-semibold text-stone-900 group-hover:text-orange-950 transition-colors text-sm sm:text-base hover:underline underline-offset-2">
                   {meeting.title}
-                </span>
+                </Link>
                 <Badge variant="active" className="text-[11px]">
                   {meeting.status}
                 </Badge>
@@ -69,6 +69,9 @@ export function RecentMeetings({ meetings }: { meetings: MeetingSummary[] }) {
             <span className="font-medium text-stone-700">Recap: </span>
             {meeting.snippet}
           </p>
+          <Link href={`/meetings/${encodeURIComponent(meeting.id)}`} className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-stone-700 hover:text-orange-900">
+            Open meeting record <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+          </Link>
         </div>
       ))}
     </div>

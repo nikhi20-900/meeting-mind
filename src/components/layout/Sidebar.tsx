@@ -9,6 +9,7 @@ import {
   Gavel,
   CheckSquare,
   BookOpen,
+  Copy,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -25,6 +26,7 @@ const navItems = [
   { name: "New meeting", href: "/new-meeting", icon: PlusCircle },
   { name: "Decision memory", href: "/decision-memory", icon: Gavel },
   { name: "Tasks", href: "/tasks", icon: CheckSquare },
+  { name: "Duplicate review", href: "/duplicates", icon: Copy },
   { name: "Weekly digest", href: "/weekly-digest", icon: BookOpen },
 ];
 

@@ -81,6 +81,10 @@ flowchart TD
 | **⚡ Server-Side Gemini Intelligence** | Runs `gemini-3.5-flash-lite` with automatic fallback to `gemini-3.8-flash` via `@google/genai`. | Sub-second extraction with zero browser API key exposure. |
 | **🛡️ Cross-Meeting Conflict Engine** | Automatically checks new decisions against historical memory for policy collisions. | Prevents contradictory engineering, SLA, and security commitments. |
 | **👤 Human-in-the-Loop Governance** | All proposed tasks start in **`Awaiting Approval`** and require explicit confirmation. | Protects team capacity by stopping AI agents from polluting task trackers. |
+| **🧹 Duplicate Review & Cleanup** | Finds records with matching wording and meeting context; editors choose the copy to keep before archiving the others. Archived copies remain stored and can be restored. | Cleans repeated imports without deleting records automatically; decisions with linked conflict history are protected. |
+| **🗂️ Meeting Detail Records** | Brings each meeting recap together with linked decisions, conflict reviews, and action items, with links between related records. | Gives teams one place to revisit what was discussed and follow the work through. |
+| **📝 Reusable Meeting Templates** | Editors can save and remove workspace-wide recap formats; teammates can load them into a new meeting and adjust the details. | Keeps recurring meetings consistent while avoiding repeated setup. |
+| **📤 Meeting Summary Sharing & Export** | Review and edit a concise summary, then copy it, download it as Markdown, or share it with the device’s share menu. | Makes meeting outcomes easy to circulate while keeping the full transcript out of the summary by default. |
 | **💾 Persistent Storage** | PostgreSQL with transaction-locked updates in hosted deployments; a local JSON store remains available for development. | Keeps hosted data durable across instances and prevents concurrent updates from overwriting each other. |
 | **📊 Executive Weekly Digest** | Aggregates decisions, assignments, and deadlines across teams and individual members. | Instant executive synthesis for 1:1s, sprint planning, and leadership reviews. |
 

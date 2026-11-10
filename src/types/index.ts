@@ -11,6 +11,9 @@ export type TaskPriority = "High" | "Medium" | "Low" | "Unknown";
 
 export interface Decision {
   id: string;
+  duplicateOfId?: string;
+  duplicateMarkedAt?: string;
+  duplicateReviewOriginalMeetingId?: string;
   date: string;
   meetingReference: string;
   meetingId: string;
@@ -33,6 +36,11 @@ export interface Decision {
 
 export interface TaskItem {
   id: string;
+  duplicateOfId?: string;
+  duplicateMarkedAt?: string;
+  associatedMeetingId?: string;
+  duplicateReviewOriginalMeetingId?: string;
+  duplicateReviewOriginalDecisionId?: string;
   title: string;
   owner: {
     name: string;
@@ -54,6 +62,8 @@ export interface TaskItem {
 
 export interface MeetingSummary {
   id: string;
+  duplicateOfId?: string;
+  duplicateMarkedAt?: string;
   title: string;
   date: string;
   duration: string;
@@ -63,6 +73,7 @@ export interface MeetingSummary {
   tasksCount: number;
   conflictsDetected: number;
   snippet: string;
+  recapText?: string;
 }
 
 export interface DashboardStats {

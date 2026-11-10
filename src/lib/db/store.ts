@@ -3,7 +3,7 @@ import path from "path";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import type { PoolClient } from "pg";
-import type { ConflictRecord, MeetingMindDatabase } from "./types";
+import type { ConflictRecord, MeetingMindDatabase, MeetingTemplate } from "./types";
 import type { Decision, MeetingSummary, TaskItem } from "@/types";
 import { sampleMeetings, sampleDecisions, sampleTasks } from "@/data/mockData";
 
@@ -43,6 +43,7 @@ function getInitialDatabase(): MeetingMindDatabase {
     decisions: sampleDecisions,
     tasks: sampleTasks,
     conflicts: initialConflicts,
+    templates: [],
     meta: { version: 1, initializedAt: now, lastUpdated: now },
   };
 }
@@ -54,6 +55,7 @@ function getEmptyDatabase(): MeetingMindDatabase {
     decisions: [],
     tasks: [],
     conflicts: [],
+    templates: [],
     meta: { version: 1, initializedAt: now, lastUpdated: now },
   };
 }
@@ -143,6 +145,13 @@ async function ensurePostgresSchema(): Promise<void> {
             payload JSONB NOT NULL
           )
         `);
+        await client.query(`
+          CREATE TABLE IF NOT EXISTS meeting_mind_templates (
+            id TEXT PRIMARY KEY,
+            position INTEGER NOT NULL,
+            payload JSONB NOT NULL
+          )
+        `);
         await client.query("CREATE INDEX IF NOT EXISTS meeting_mind_meetings_date_idx ON meeting_mind_meetings (meeting_date)");
         await client.query("CREATE INDEX IF NOT EXISTS meeting_mind_decisions_meeting_idx ON meeting_mind_decisions (meeting_id)");
         await client.query("CREATE INDEX IF NOT EXISTS meeting_mind_decisions_status_idx ON meeting_mind_decisions (status)");
@@ -186,7 +195,7 @@ async function ensurePostgresSchema(): Promise<void> {
   await schemaReady;
 }
 
-type PostgresEntityTable = "meeting_mind_meetings" | "meeting_mind_decisions" | "meeting_mind_tasks" | "meeting_mind_conflicts";
+type PostgresEntityTable = "meeting_mind_meetings" | "meeting_mind_decisions" | "meeting_mind_tasks" | "meeting_mind_conflicts" | "meeting_mind_templates";
 
 async function synchronizeEntityRows<T extends { id: string }>(
   client: PoolClient,
@@ -199,7 +208,9 @@ async function synchronizeEntityRows<T extends { id: string }>(
 
   for (const [position, row] of rows.entries()) {
     const specificValues = valuesForRow(row);
-    const columns = table === "meeting_mind_meetings"
+    const columns = table === "meeting_mind_templates"
+      ? "id, position, payload"
+      : table === "meeting_mind_meetings"
       ? "id, position, meeting_date, status, payload"
       : table === "meeting_mind_decisions"
       ? "id, position, meeting_id, category, status, payload"
@@ -223,6 +234,7 @@ async function persistEntityRows(client: PoolClient, database: MeetingMindDataba
   await synchronizeEntityRows(client, "meeting_mind_decisions", database.decisions || [], (decision: Decision) => [decision.meetingId, decision.category, decision.status]);
   await synchronizeEntityRows(client, "meeting_mind_tasks", database.tasks || [], (task: TaskItem) => [task.associatedDecisionId || null, task.status, task.dueDate]);
   await synchronizeEntityRows(client, "meeting_mind_conflicts", database.conflicts || [], (conflict: ConflictRecord) => [conflict.sourceDecisionId, conflict.targetDecisionId, conflict.resolved]);
+  await synchronizeEntityRows(client, "meeting_mind_templates", database.templates || [], () => []);
 }
 
 async function readPostgresState(client: PoolClient): Promise<MeetingMindDatabase> {
@@ -234,6 +246,7 @@ async function readPostgresState(client: PoolClient): Promise<MeetingMindDatabas
   const decisions = await client.query<{ payload: Decision }>("SELECT payload FROM meeting_mind_decisions ORDER BY position, id");
   const tasks = await client.query<{ payload: TaskItem }>("SELECT payload FROM meeting_mind_tasks ORDER BY position, id");
   const conflicts = await client.query<{ payload: ConflictRecord }>("SELECT payload FROM meeting_mind_conflicts ORDER BY position, id");
+  const templates = await client.query<{ payload: MeetingTemplate }>("SELECT payload FROM meeting_mind_templates ORDER BY position, id");
   const meta = metadata.rows[0];
   if (!meta) throw new Error("Hosted database metadata row is missing.");
   return {
@@ -241,6 +254,7 @@ async function readPostgresState(client: PoolClient): Promise<MeetingMindDatabas
     decisions: decisions.rows.map((row) => row.payload),
     tasks: tasks.rows.map((row) => row.payload),
     conflicts: conflicts.rows.map((row) => row.payload),
+    templates: templates.rows.map((row) => row.payload),
     meta: {
       version: Number(meta.version),
       initializedAt: new Date(meta.initialized_at).toISOString(),
@@ -249,7 +263,7 @@ async function readPostgresState(client: PoolClient): Promise<MeetingMindDatabas
   };
 }
 
-function usePostgres(): boolean {
+function isUsingPostgres(): boolean {
   if (process.env.DATABASE_URL) return true;
   if (process.env.NODE_ENV === "production") {
     throw new Error("DATABASE_URL must be configured in production; file storage is development-only.");
@@ -261,7 +275,8 @@ async function readFileDatabase(): Promise<MeetingMindDatabase> {
   await fs.mkdir(DB_DIR, { recursive: true });
   try {
     const content = await fs.readFile(DB_FILE, "utf-8");
-    return JSON.parse(content) as MeetingMindDatabase;
+    const database = JSON.parse(content) as MeetingMindDatabase;
+    return { ...database, templates: Array.isArray(database.templates) ? database.templates : [] };
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     const initial = getInitialDatabase();
@@ -284,7 +299,7 @@ async function writeFileDatabase(data: MeetingMindDatabase): Promise<void> {
 }
 
 export async function readDatabase(): Promise<MeetingMindDatabase> {
-  if (!usePostgres()) return readFileDatabase();
+  if (!isUsingPostgres()) return readFileDatabase();
 
   await ensurePostgresSchema();
   const client = await getPool().connect();
@@ -302,7 +317,7 @@ export async function readDatabase(): Promise<MeetingMindDatabase> {
 }
 
 export async function mutateDatabase<T>(mutation: DatabaseMutation<T>): Promise<T> {
-  if (!usePostgres()) {
+  if (!isUsingPostgres()) {
     let result!: T;
     const operation = fileMutationQueue.then(async () => {
       const database = await readFileDatabase();
@@ -348,7 +363,7 @@ export async function consumeRateLimit(
   limit: number,
   windowMs: number
 ): Promise<{ allowed: boolean; retryAfterSeconds: number }> {
-  if (!usePostgres()) {
+  if (!isUsingPostgres()) {
     const now = Date.now();
     const current = localRateLimits.get(key);
     if (!current || current.resetAt <= now) {
